@@ -25,6 +25,7 @@ import (
 
 type Manager struct {
 	routes                RoutingStore
+	services              ServiceDeploymentStore
 	cache                 ConfigCache
 	bus                   ConfigBus
 	auth                  *auth.Service
@@ -86,18 +87,24 @@ type compiledAccessWindow struct {
 }
 
 type ManagerOptions struct {
-	LocalCacheTTL         time.Duration
-	LocalCacheCapacity    int
-	AdminHost             string
-	BootstrapAdminEnabled bool
-	AdminUITargetURL      string
-	AdminAPITargetURL     string
+	LocalCacheTTL          time.Duration
+	LocalCacheCapacity     int
+	AdminHost              string
+	BootstrapAdminEnabled  bool
+	AdminUITargetURL       string
+	AdminAPITargetURL      string
+	ServiceDeploymentStore ServiceDeploymentStore
 }
 
 type targetCircuitState struct {
 	consecutiveFailures int
 	degradedUntil       time.Time
 	lastError           string
+}
+
+type ServiceDeploymentStore interface {
+	GetByID(ctx context.Context, id uint) (*domain.Service, error)
+	Update(ctx context.Context, item *domain.Service) error
 }
 
 func NewManager(routingStore RoutingStore, cache ConfigCache, bus ConfigBus, authService *auth.Service, auditLogger *audit.Logger, logger *slog.Logger, metrics *observability.Metrics, options ManagerOptions) *Manager {
@@ -135,6 +142,7 @@ func NewManager(routingStore RoutingStore, cache ConfigCache, bus ConfigBus, aut
 
 	return &Manager{
 		routes:                routingStore,
+		services:              options.ServiceDeploymentStore,
 		cache:                 cache,
 		bus:                   bus,
 		auth:                  authService,
@@ -203,10 +211,27 @@ func (m *Manager) ApplyServiceChange(ctx context.Context, serviceID uint) (*doma
 	if err != nil {
 		return nil, err
 	}
+	if m.services != nil {
+		service, err := m.services.GetByID(ctx, serviceID)
+		if err != nil {
+			return nil, err
+		}
+		now := time.Now().UTC()
+		service.LastDeployedAt = &now
+		service.DeploymentRevision++
+		if err := m.services.Update(ctx, service); err != nil {
+			return nil, err
+		}
+	}
 	if err := m.InvalidateHost(ctx, config.Host); err != nil {
 		return nil, err
 	}
 	serviceCopy := config.Service
+	if m.services != nil {
+		if service, err := m.services.GetByID(ctx, serviceID); err == nil {
+			serviceCopy = *service
+		}
+	}
 	return &serviceCopy, nil
 }
 

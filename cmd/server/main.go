@@ -149,12 +149,13 @@ func main() {
 		logger,
 		metrics,
 		proxy.ManagerOptions{
-			LocalCacheTTL:         cfg.RouteLocalCacheTTL,
-			LocalCacheCapacity:    cfg.RouteLocalCacheSize,
-			AdminHost:             hostnameFromURL(cfg.FrontendBaseURL),
-			BootstrapAdminEnabled: cfg.BootstrapAdminEnabled,
-			AdminUITargetURL:      "http://frontend:3000",
-			AdminAPITargetURL:     "http://127.0.0.1:8080",
+			LocalCacheTTL:          cfg.RouteLocalCacheTTL,
+			LocalCacheCapacity:     cfg.RouteLocalCacheSize,
+			AdminHost:              hostnameFromURL(cfg.FrontendBaseURL),
+			BootstrapAdminEnabled:  cfg.BootstrapAdminEnabled,
+			AdminUITargetURL:       "http://frontend:3000",
+			AdminAPITargetURL:      "http://127.0.0.1:8080",
+			ServiceDeploymentStore: serviceStore,
 		},
 	)
 
