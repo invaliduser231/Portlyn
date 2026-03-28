@@ -55,6 +55,11 @@ function AuthProvider({ children }: { children: ReactNode }) {
   const [isCompletingSetup, setIsCompletingSetup] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const isPublicAuthRoute =
+    pathname === "/login" ||
+    pathname === "/oidc/callback" ||
+    pathname === "/route-login" ||
+    pathname === "/route-forbidden";
 
   const clearSession = useCallback(() => {
     setUser(null);
@@ -98,14 +103,14 @@ function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         clearSession();
-        if (pathname !== "/login" && pathname !== "/oidc/callback") {
+        if (!isPublicAuthRoute) {
           router.replace("/login");
         }
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [clearSession, pathname, router]);
+  }, [clearSession, isPublicAuthRoute, router]);
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -202,7 +207,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
           </Button>
         </Stack>
       </Modal>
-      {pathname === "/login" || pathname === "/oidc/callback" || !isLoading ? (
+      {isPublicAuthRoute || (!isLoading && Boolean(user)) ? (
         children
       ) : (
         <Center mih="100vh">
