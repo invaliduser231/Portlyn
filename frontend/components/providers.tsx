@@ -56,13 +56,17 @@ function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const handleLogout = useCallback(() => {
-    void logoutRequest();
+  const clearSession = useCallback(() => {
     setUser(null);
     setToken(null);
     clearAuthStorage();
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    void logoutRequest();
+    clearSession();
     router.push("/login");
-  }, [router]);
+  }, [clearSession, router]);
 
   const completeAuth = useCallback(
     (response: LoginResponse) => {
@@ -93,12 +97,15 @@ function AuthProvider({ children }: { children: ReactNode }) {
         setSetupEmail(currentUser.email || "");
       })
       .catch(() => {
-        handleLogout();
+        clearSession();
+        if (pathname !== "/login" && pathname !== "/oidc/callback") {
+          router.replace("/login");
+        }
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [handleLogout]);
+  }, [clearSession, pathname, router]);
 
   const login = useCallback(
     async (email: string, password: string) => {
