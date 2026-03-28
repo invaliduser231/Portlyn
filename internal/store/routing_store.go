@@ -25,7 +25,7 @@ func NewRoutingStore(db *gorm.DB) *SQLRoutingStore {
 func (s *SQLRoutingStore) GetRoutesForHost(ctx context.Context, host string) ([]routing.RouteConfig, error) {
 	var services []domain.Service
 	err := s.baseQuery(ctx).
-		Where("LOWER(domains.name) = ?", strings.ToLower(strings.TrimSpace(host))).
+		Where(`LOWER("Domain"."name") = ?`, strings.ToLower(strings.TrimSpace(host))).
 		Order("services.path asc").
 		Find(&services).Error
 	if err != nil {
@@ -37,7 +37,7 @@ func (s *SQLRoutingStore) GetRoutesForHost(ctx context.Context, host string) ([]
 func (s *SQLRoutingStore) ListRoutes(ctx context.Context, filter routing.RouteFilter) ([]routing.RouteConfig, error) {
 	query := s.baseQuery(ctx)
 	if filter.Host != "" {
-		query = query.Where("LOWER(domains.name) = ?", strings.ToLower(strings.TrimSpace(filter.Host)))
+		query = query.Where(`LOWER("Domain"."name") = ?`, strings.ToLower(strings.TrimSpace(filter.Host)))
 	}
 	if filter.ServiceID != "" {
 		if parsed, err := strconv.ParseUint(filter.ServiceID, 10, 64); err == nil {
@@ -55,7 +55,7 @@ func (s *SQLRoutingStore) ListRoutes(ctx context.Context, filter routing.RouteFi
 	}
 
 	var services []domain.Service
-	if err := query.Order("domains.name asc, services.path asc, services.id asc").Find(&services).Error; err != nil {
+	if err := query.Order(`"Domain"."name" asc, services.path asc, services.id asc`).Find(&services).Error; err != nil {
 		return nil, err
 	}
 	return s.toRouteConfigs(services), nil
