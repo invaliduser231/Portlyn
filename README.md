@@ -126,13 +126,22 @@ If needed, Portlyn can also run against an external PostgreSQL instance through 
 
 ## Quick Start
 
-1. Copy the example environment file:
+1. Run the interactive deployment helper:
+
+```bash
+./deploy.sh
+```
+
+It creates `.env.docker` from `.env.docker.example` when needed, asks for the required values,
+updates the file, and starts the stack.
+
+2. Manual path if you want to edit the env file yourself:
 
 ```bash
 cp .env.docker.example .env.docker
 ```
 
-2. Edit `.env.docker` and set at least:
+Then set at least:
 
 - `JWT_SECRET`
 - `ADMIN_EMAIL`
@@ -142,7 +151,7 @@ cp .env.docker.example .env.docker
 - `FRONTEND_BASE_URL`
 - `CORS_ALLOWED_ORIGINS`
 
-3. Start the stack:
+3. Start the stack manually:
 
 ```bash
 docker compose --env-file .env.docker up -d --build

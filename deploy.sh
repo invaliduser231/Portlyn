@@ -3,29 +3,255 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ENV_FILE="$ROOT_DIR/.env.docker"
+EXAMPLE_FILE="$ROOT_DIR/.env.docker.example"
+TMP_FILE="$ROOT_DIR/.env.docker.tmp"
+
+detect_distro() {
+  if [ -r /etc/os-release ]; then
+    distro_id="$(sed -n 's/^ID=//p' /etc/os-release | head -n 1 | tr -d '"')"
+    if [ -n "$distro_id" ]; then
+      printf '%s' "$distro_id"
+      return
+    fi
+  fi
+
+  printf 'unknown'
+}
+
+random_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+    return
+  fi
+
+  if [ -r /dev/urandom ] && command -v od >/dev/null 2>&1; then
+    od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
+    return
+  fi
+
+  if [ -r /dev/urandom ] && command -v head >/dev/null 2>&1 && command -v od >/dev/null 2>&1 && command -v tr >/dev/null 2>&1; then
+    head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'
+    return
+  fi
+
+  printf 'change-me-%s' "$(date +%s)"
+}
+
+trim() {
+  printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed 's/[\/&]/\\&/g'
+}
+
+set_env_value() {
+  key="$1"
+  value="$2"
+  escaped_value="$(escape_sed_replacement "$value")"
+
+  if grep -q "^${key}=" "$ENV_FILE"; then
+    sed "s/^${key}=.*/${key}=${escaped_value}/" "$ENV_FILE" > "$TMP_FILE"
+    mv "$TMP_FILE" "$ENV_FILE"
+  else
+    printf '\n%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  fi
+}
+
+get_env_value() {
+  key="$1"
+  if [ ! -f "$ENV_FILE" ]; then
+    return 0
+  fi
+
+  line="$(grep "^${key}=" "$ENV_FILE" | tail -n 1 || true)"
+  if [ -z "$line" ]; then
+    return 0
+  fi
+
+  printf '%s' "${line#*=}"
+}
+
+prompt_value() {
+  key="$1"
+  label="$2"
+  default_value="$3"
+
+  current_value="$(get_env_value "$key")"
+  if [ -n "$current_value" ]; then
+    default_value="$current_value"
+  fi
+
+  if [ -n "$default_value" ]; then
+    printf '%s [%s]: ' "$label" "$default_value"
+  else
+    printf '%s: ' "$label"
+  fi
+
+  read -r input_value || true
+  input_value="$(trim "$input_value")"
+  if [ -z "$input_value" ]; then
+    input_value="$default_value"
+  fi
+
+  printf '%s' "$input_value"
+}
+
+prompt_secret() {
+  key="$1"
+  label="$2"
+  generated_default="$3"
+
+  current_value="$(get_env_value "$key")"
+  if [ -n "$current_value" ]; then
+    generated_default="$current_value"
+  fi
+
+  printf '%s' "$label"
+  if [ -n "$generated_default" ]; then
+    printf ' [press enter to keep current/generated value]'
+  fi
+  printf ': '
+
+  stty_state="$(stty -g 2>/dev/null || true)"
+  if [ -n "$stty_state" ]; then
+    stty -echo 2>/dev/null || true
+  fi
+  read -r input_value || true
+  if [ -n "$stty_state" ]; then
+    stty "$stty_state" 2>/dev/null || true
+  fi
+  printf '\n'
+
+  input_value="$(trim "$input_value")"
+  if [ -z "$input_value" ]; then
+    input_value="$generated_default"
+  fi
+
+  printf '%s' "$input_value"
+}
+
+prompt_yes_no() {
+  key="$1"
+  label="$2"
+  default_value="$3"
+
+  current_value="$(get_env_value "$key")"
+  if [ "$current_value" = "true" ] || [ "$current_value" = "false" ]; then
+    default_value="$current_value"
+  fi
+
+  while true; do
+    if [ "$default_value" = "true" ]; then
+      printf '%s [Y/n]: ' "$label"
+    else
+      printf '%s [y/N]: ' "$label"
+    fi
+
+    read -r input_value || true
+    input_value="$(trim "$input_value")"
+    input_value="$(printf '%s' "$input_value" | tr '[:upper:]' '[:lower:]')"
+
+    if [ -z "$input_value" ]; then
+      printf '%s' "$default_value"
+      return 0
+    fi
+
+    case "$input_value" in
+      y|yes|true) printf 'true'; return 0 ;;
+      n|no|false) printf 'false'; return 0 ;;
+    esac
+
+    echo "Please answer yes or no."
+  done
+}
+
+require_non_empty() {
+  key="$1"
+  value="$2"
+  if [ -z "$value" ]; then
+    echo "$key must not be empty." >&2
+    exit 1
+  fi
+}
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required but was not found in PATH." >&2
+  exit 1
+fi
+
+if [ ! -f "$EXAMPLE_FILE" ]; then
+  echo "Missing $EXAMPLE_FILE" >&2
+  exit 1
+fi
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "Missing .env.docker. Copy .env.docker.example to .env.docker and set real values first." >&2
-  exit 1
+  cp "$EXAMPLE_FILE" "$ENV_FILE"
+  echo "Created $ENV_FILE from .env.docker.example"
 fi
 
-set -a
-. "$ENV_FILE"
-set +a
+echo "Portlyn deployment setup"
+echo "This wizard updates $ENV_FILE and then starts docker compose."
+distro="$(detect_distro)"
+if [ "$distro" != "unknown" ]; then
+  echo "Detected Linux distro: $distro"
+fi
+echo
 
-if [ -z "${JWT_SECRET:-}" ] || [ -z "${ADMIN_EMAIL:-}" ] || [ -z "${ADMIN_PASSWORD:-}" ]; then
-  echo "JWT_SECRET, ADMIN_EMAIL, and ADMIN_PASSWORD must be set in .env.docker" >&2
-  exit 1
+frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Public frontend URL" "$(get_env_value "FRONTEND_BASE_URL")")"
+if [ -z "$frontend_base_url" ] || [ "$frontend_base_url" = "http://localhost:3000" ]; then
+  frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Public frontend URL" "http://localhost:3000")"
 fi
 
-if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]; then
-  echo "GRAFANA_ADMIN_PASSWORD must be set in .env.docker" >&2
-  exit 1
+cors_allowed_origins="$(prompt_value "CORS_ALLOWED_ORIGINS" "Allowed CORS origins (comma separated)" "$frontend_base_url")"
+admin_email="$(prompt_value "ADMIN_EMAIL" "Admin email" "$(get_env_value "ADMIN_EMAIL")")"
+admin_password="$(prompt_secret "ADMIN_PASSWORD" "Admin password" "")"
+jwt_secret="$(prompt_secret "JWT_SECRET" "JWT secret" "$(random_secret)")"
+postgres_password="$(prompt_secret "POSTGRES_PASSWORD" "PostgreSQL password" "$(random_secret)")"
+grafana_admin_password="$(prompt_secret "GRAFANA_ADMIN_PASSWORD" "Grafana admin password" "$(random_secret)")"
+acme_enabled="$(prompt_yes_no "ACME_ENABLED" "Enable ACME / Let's Encrypt" "false")"
+
+redirect_http_to_https="false"
+acme_email=""
+if [ "$acme_enabled" = "true" ]; then
+  acme_email="$(prompt_value "ACME_EMAIL" "ACME email" "$(get_env_value "ACME_EMAIL")")"
+  redirect_http_to_https="$(prompt_yes_no "REDIRECT_HTTP_TO_HTTPS" "Redirect HTTP to HTTPS" "true")"
 fi
 
-if [ -z "${DATABASE_URL:-}" ] && [ "${DATABASE_DRIVER:-postgres}" = "postgres" ] && [ -z "${POSTGRES_PASSWORD:-}" ]; then
-  echo "POSTGRES_PASSWORD must be set when using the bundled PostgreSQL service" >&2
-  exit 1
+require_non_empty "FRONTEND_BASE_URL" "$frontend_base_url"
+require_non_empty "CORS_ALLOWED_ORIGINS" "$cors_allowed_origins"
+require_non_empty "ADMIN_EMAIL" "$admin_email"
+require_non_empty "ADMIN_PASSWORD" "$admin_password"
+require_non_empty "JWT_SECRET" "$jwt_secret"
+require_non_empty "GRAFANA_ADMIN_PASSWORD" "$grafana_admin_password"
+require_non_empty "POSTGRES_PASSWORD" "$postgres_password"
+if [ "$acme_enabled" = "true" ]; then
+  require_non_empty "ACME_EMAIL" "$acme_email"
 fi
 
+set_env_value "FRONTEND_BASE_URL" "$frontend_base_url"
+set_env_value "CORS_ALLOWED_ORIGINS" "$cors_allowed_origins"
+set_env_value "ADMIN_EMAIL" "$admin_email"
+set_env_value "ADMIN_PASSWORD" "$admin_password"
+set_env_value "JWT_SECRET" "$jwt_secret"
+set_env_value "POSTGRES_PASSWORD" "$postgres_password"
+set_env_value "GRAFANA_ADMIN_PASSWORD" "$grafana_admin_password"
+set_env_value "ACME_ENABLED" "$acme_enabled"
+set_env_value "REDIRECT_HTTP_TO_HTTPS" "$redirect_http_to_https"
+set_env_value "ACME_EMAIL" "$acme_email"
+set_env_value "ALLOW_INSECURE_DEV_MODE" "false"
+set_env_value "OTP_RESPONSE_INCLUDES_CODE" "false"
+
+echo
+echo "Saved configuration to $ENV_FILE"
+echo "Starting docker compose..."
 docker compose --env-file "$ENV_FILE" up -d --build
+echo
+api_port="$(get_env_value "PORTLYN_API_PORT")"
+if [ -z "$api_port" ]; then
+  api_port="8080"
+fi
+
+echo "Portlyn is starting."
+echo "Frontend: $(get_env_value "FRONTEND_BASE_URL")"
+echo "API: http://localhost:$api_port"
