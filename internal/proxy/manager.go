@@ -24,22 +24,23 @@ import (
 )
 
 type Manager struct {
-	routes     RoutingStore
-	cache      ConfigCache
-	bus        ConfigBus
-	auth       *auth.Service
-	audit      *audit.Logger
-	logger     *slog.Logger
-	transport  *http.Transport
-	revision   uint64
-	localCache *ttlLRU[string, []Route]
-	startOnce  sync.Once
-	metrics    *observability.Metrics
-	breakersMu sync.Mutex
-	breakers   map[string]*targetCircuitState
-	adminHost  string
-	adminUI    http.Handler
-	adminAPI   http.Handler
+	routes                RoutingStore
+	cache                 ConfigCache
+	bus                   ConfigBus
+	auth                  *auth.Service
+	audit                 *audit.Logger
+	logger                *slog.Logger
+	transport             *http.Transport
+	revision              uint64
+	localCache            *ttlLRU[string, []Route]
+	startOnce             sync.Once
+	metrics               *observability.Metrics
+	breakersMu            sync.Mutex
+	breakers              map[string]*targetCircuitState
+	adminHost             string
+	bootstrapAdminEnabled bool
+	adminUI               http.Handler
+	adminAPI              http.Handler
 }
 
 type RuntimeRoute struct {
@@ -85,11 +86,12 @@ type compiledAccessWindow struct {
 }
 
 type ManagerOptions struct {
-	LocalCacheTTL      time.Duration
-	LocalCacheCapacity int
-	AdminHost          string
-	AdminUITargetURL   string
-	AdminAPITargetURL  string
+	LocalCacheTTL         time.Duration
+	LocalCacheCapacity    int
+	AdminHost             string
+	BootstrapAdminEnabled bool
+	AdminUITargetURL      string
+	AdminAPITargetURL     string
 }
 
 type targetCircuitState struct {
@@ -132,19 +134,20 @@ func NewManager(routingStore RoutingStore, cache ConfigCache, bus ConfigBus, aut
 	}
 
 	return &Manager{
-		routes:     routingStore,
-		cache:      cache,
-		bus:        bus,
-		auth:       authService,
-		audit:      auditLogger,
-		logger:     logger,
-		transport:  transport,
-		localCache: newTTLLRU[string, []Route](options.LocalCacheCapacity, options.LocalCacheTTL),
-		metrics:    metrics,
-		breakers:   make(map[string]*targetCircuitState),
-		adminHost:  normalizeHost(options.AdminHost),
-		adminUI:    adminUIHandler,
-		adminAPI:   adminAPIHandler,
+		routes:                routingStore,
+		cache:                 cache,
+		bus:                   bus,
+		auth:                  authService,
+		audit:                 auditLogger,
+		logger:                logger,
+		transport:             transport,
+		localCache:            newTTLLRU[string, []Route](options.LocalCacheCapacity, options.LocalCacheTTL),
+		metrics:               metrics,
+		breakers:              make(map[string]*targetCircuitState),
+		adminHost:             normalizeHost(options.AdminHost),
+		bootstrapAdminEnabled: options.BootstrapAdminEnabled,
+		adminUI:               adminUIHandler,
+		adminAPI:              adminAPIHandler,
 	}
 }
 
@@ -353,7 +356,11 @@ func (m *Manager) matchRoute(ctx context.Context, host, path string) (Route, boo
 }
 
 func (m *Manager) isAdminHost(host string) bool {
-	return m.adminHost != "" && normalizeHost(host) == m.adminHost
+	normalized := normalizeHost(host)
+	if m.adminHost != "" && normalized == m.adminHost {
+		return true
+	}
+	return m.bootstrapAdminEnabled && isBootstrapAdminHost(normalized)
 }
 
 func (m *Manager) handleAdminHost(w http.ResponseWriter, r *http.Request, path string) bool {
@@ -1008,6 +1015,17 @@ func normalizeHost(value string) string {
 		return host[:idx]
 	}
 	return host
+}
+
+func isBootstrapAdminHost(host string) bool {
+	switch host {
+	case "", "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return true
+	}
+	return false
 }
 
 func normalizePath(value string) string {

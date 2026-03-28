@@ -191,25 +191,35 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 echo "Portlyn deployment setup"
-echo "This wizard updates $ENV_FILE and then starts docker compose."
+echo "This wizard prepares bootstrap admin access and then starts docker compose."
+echo "You can move Portlyn to a public admin domain later in the UI."
 distro="$(detect_distro)"
 if [ "$distro" != "unknown" ]; then
   echo "Detected Linux distro: $distro"
 fi
 echo
 
-frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Public frontend URL" "$(get_env_value "FRONTEND_BASE_URL")")"
-if [ -z "$frontend_base_url" ] || [ "$frontend_base_url" = "http://localhost" ]; then
-  frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Public frontend URL" "http://localhost")"
+frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Initial admin URL" "http://localhost")"
+if [ -z "$frontend_base_url" ]; then
+  frontend_base_url="http://localhost"
 fi
 
-cors_allowed_origins="$(prompt_value "CORS_ALLOWED_ORIGINS" "Allowed CORS origins (comma separated)" "$frontend_base_url")"
+default_cors="http://localhost,http://127.0.0.1"
+case "$frontend_base_url" in
+  http://localhost|http://127.0.0.1|"")
+    ;;
+  *)
+    default_cors="$default_cors,$frontend_base_url"
+    ;;
+esac
+cors_allowed_origins="$(prompt_value "CORS_ALLOWED_ORIGINS" "Allowed CORS origins (comma separated)" "$default_cors")"
 admin_email="$(prompt_value "ADMIN_EMAIL" "Admin email" "$(get_env_value "ADMIN_EMAIL")")"
 admin_password="$(prompt_secret "ADMIN_PASSWORD" "Admin password" "")"
 jwt_secret="$(prompt_secret "JWT_SECRET" "JWT secret" "$(random_secret)")"
 postgres_password="$(prompt_secret "POSTGRES_PASSWORD" "PostgreSQL password" "$(random_secret)")"
 grafana_admin_password="$(prompt_secret "GRAFANA_ADMIN_PASSWORD" "Grafana admin password" "$(random_secret)")"
-acme_enabled="$(prompt_yes_no "ACME_ENABLED" "Enable ACME / Let's Encrypt" "false")"
+bootstrap_admin_enabled="$(prompt_yes_no "BOOTSTRAP_ADMIN_ENABLED" "Keep bootstrap admin access on localhost and direct IPs" "true")"
+acme_enabled="$(prompt_yes_no "ACME_ENABLED" "Enable ACME / Let's Encrypt now" "false")"
 
 redirect_http_to_https="false"
 acme_email=""
@@ -236,6 +246,7 @@ set_env_value "ADMIN_PASSWORD" "$admin_password"
 set_env_value "JWT_SECRET" "$jwt_secret"
 set_env_value "POSTGRES_PASSWORD" "$postgres_password"
 set_env_value "GRAFANA_ADMIN_PASSWORD" "$grafana_admin_password"
+set_env_value "BOOTSTRAP_ADMIN_ENABLED" "$bootstrap_admin_enabled"
 set_env_value "ACME_ENABLED" "$acme_enabled"
 set_env_value "REDIRECT_HTTP_TO_HTTPS" "$redirect_http_to_https"
 set_env_value "ACME_EMAIL" "$acme_email"
@@ -254,4 +265,7 @@ fi
 
 echo "Portlyn is starting."
 echo "Frontend: $(get_env_value "FRONTEND_BASE_URL")"
+if [ "$bootstrap_admin_enabled" = "true" ]; then
+  echo "Bootstrap admin access: http://localhost or http://<server-ip>"
+fi
 echo "API: http://localhost:$api_port"

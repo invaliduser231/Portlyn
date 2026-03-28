@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -184,6 +186,30 @@ func TestManagerInvalidateHostClearsCaches(t *testing.T) {
 	}
 	if got := store.Calls(); got != 2 {
 		t.Fatalf("expected second store fetch after explicit invalidation, got %d", got)
+	}
+}
+
+func TestManagerServesBootstrapAdminHosts(t *testing.T) {
+	adminUI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer adminUI.Close()
+
+	manager := NewManager(newFakeRoutingStore(), NewInMemoryConfigCache(), NewInMemoryConfigBus(), nil, nil, nil, nil, ManagerOptions{
+		LocalCacheTTL:         time.Hour,
+		LocalCacheCapacity:    16,
+		BootstrapAdminEnabled: true,
+		AdminUITargetURL:      adminUI.URL,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/login", nil)
+	req.Host = "127.0.0.1"
+	recorder := httptest.NewRecorder()
+
+	manager.Handler().ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected bootstrap admin host to be served by admin UI, got %d", recorder.Code)
 	}
 }
 

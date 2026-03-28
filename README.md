@@ -131,8 +131,9 @@ If needed, Portlyn can also run against an external PostgreSQL instance through 
 ```
 
 It creates `.env.docker` from `.env.docker.example` when needed, asks for the required values,
-updates the file, and starts the stack. The admin UI is served through the same `80/443` entrypoint
-as the proxy, keyed off the hostname in `FRONTEND_BASE_URL`.
+updates the file, and starts the stack. The default bootstrap flow keeps the admin UI reachable on
+`http://localhost` and direct IP hosts first, so you can log in, add a domain, request a
+certificate, and later move the admin UI to a managed public hostname.
 
 2. Manual path if you want to edit the env file yourself:
 
@@ -149,6 +150,7 @@ Then set at least:
 - `GRAFANA_ADMIN_PASSWORD`
 - `FRONTEND_BASE_URL`
 - `CORS_ALLOWED_ORIGINS`
+- `BOOTSTRAP_ADMIN_ENABLED`
 
 3. Start the stack manually:
 

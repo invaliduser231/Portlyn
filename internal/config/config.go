@@ -15,6 +15,7 @@ type Config struct {
 	AppVersion            string
 	HTTPAddr              string
 	FrontendBaseURL       string
+	BootstrapAdminEnabled bool
 	ProxyHTTPAddr         string
 	ProxyHTTPSAddr        string
 	RedisURL              string
@@ -100,7 +101,8 @@ func Load() (Config, error) {
 	cfg := Config{
 		AppVersion:            getEnv("APP_VERSION", "dev"),
 		HTTPAddr:              getEnv("HTTP_ADDR", ":8080"),
-		FrontendBaseURL:       strings.TrimRight(getEnv("FRONTEND_BASE_URL", "http://localhost:3000"), "/"),
+		FrontendBaseURL:       strings.TrimRight(getEnv("FRONTEND_BASE_URL", "http://localhost"), "/"),
+		BootstrapAdminEnabled: getEnvBool("BOOTSTRAP_ADMIN_ENABLED", true),
 		ProxyHTTPAddr:         getEnv("PROXY_HTTP_ADDR", ":80"),
 		ProxyHTTPSAddr:        getEnv("PROXY_HTTPS_ADDR", ":443"),
 		RedisURL:              strings.TrimSpace(os.Getenv("REDIS_URL")),
@@ -112,7 +114,7 @@ func Load() (Config, error) {
 		TokenTTL:              getEnvDuration("TOKEN_TTL", 24*time.Hour),
 		RefreshTokenTTL:       getEnvDuration("REFRESH_TOKEN_TTL", 30*24*time.Hour),
 		LogLevel:              getEnvLogLevel("LOG_LEVEL", slog.LevelInfo),
-		AllowedOrigins:        getEnvList("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000", "http://127.0.0.1:3000"}),
+		AllowedOrigins:        getEnvList("CORS_ALLOWED_ORIGINS", []string{"http://localhost", "http://127.0.0.1"}),
 		AdminEmail:            strings.TrimSpace(os.Getenv("ADMIN_EMAIL")),
 		AdminPassword:         os.Getenv("ADMIN_PASSWORD"),
 		ViewerEmail:           strings.TrimSpace(os.Getenv("VIEWER_EMAIL")),
