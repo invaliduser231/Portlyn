@@ -87,7 +87,7 @@ export async function finishOIDCLogin(code: string, state: string) {
 }
 
 export async function getCurrentUser() {
-  return apiFetch<User>("/api/v1/me");
+  return apiFetch<User>("/api/v1/me", undefined, { handleUnauthorized: false });
 }
 
 export async function completeAccountSetup(email: string, password: string) {

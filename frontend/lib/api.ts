@@ -53,7 +53,7 @@ export class ApiError extends Error {
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
-  options: { auth?: boolean } = { auth: true }
+  options: { auth?: boolean; handleUnauthorized?: boolean } = { auth: true, handleUnauthorized: true }
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) {
@@ -86,7 +86,7 @@ export async function apiFetch<T>(
       payload = undefined;
     }
 
-    if (response.status === 401 && unauthorizedHandler) {
+    if (response.status === 401 && options.handleUnauthorized !== false && unauthorizedHandler) {
       unauthorizedHandler();
     }
 
