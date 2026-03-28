@@ -35,10 +35,8 @@ Portlyn is designed for Linux-first Docker deployments and ships with a default 
 
 Default endpoints:
 
-- Frontend: `http://localhost:3000`
+- Frontend and proxy entrypoint: `http://localhost` or `https://localhost`
 - API: `http://localhost:8080`
-- Proxy HTTP: `http://localhost:80`
-- Proxy HTTPS: `https://localhost:443`
 - Loki: `http://localhost:3100`
 - Grafana: `http://localhost:3001`
 
@@ -133,7 +131,8 @@ If needed, Portlyn can also run against an external PostgreSQL instance through 
 ```
 
 It creates `.env.docker` from `.env.docker.example` when needed, asks for the required values,
-updates the file, and starts the stack.
+updates the file, and starts the stack. The admin UI is served through the same `80/443` entrypoint
+as the proxy, keyed off the hostname in `FRONTEND_BASE_URL`.
 
 2. Manual path if you want to edit the env file yourself:
 
@@ -208,7 +207,7 @@ DATABASE_URL=
 - Keep `OTP_RESPONSE_INCLUDES_CODE=false`
 - Set `REQUIRE_MFA_FOR_ADMINS=true` after every admin has enrolled TOTP MFA
 - Use strong secrets for JWT, PostgreSQL, and Grafana
-- Set `ACME_ENABLED=true` and `ACME_EMAIL=...` for public HTTPS
+- Set `ACME_ENABLED=true` and `ACME_EMAIL=...` for public HTTPS on the shared admin/proxy entrypoint
 - Set `REDIRECT_HTTP_TO_HTTPS=true` when TLS is active
 - Point `FRONTEND_BASE_URL` and `CORS_ALLOWED_ORIGINS` to the real external URL
 - If you use external PostgreSQL, ensure it is reachable from the `portlyn` container

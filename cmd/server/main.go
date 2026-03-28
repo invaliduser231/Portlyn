@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -150,6 +151,9 @@ func main() {
 		proxy.ManagerOptions{
 			LocalCacheTTL:      cfg.RouteLocalCacheTTL,
 			LocalCacheCapacity: cfg.RouteLocalCacheSize,
+			AdminHost:          hostnameFromURL(cfg.FrontendBaseURL),
+			AdminUITargetURL:   "http://frontend:3000",
+			AdminAPITargetURL:  "http://127.0.0.1:8080",
 		},
 	)
 
@@ -314,4 +318,17 @@ func portFromAddr(addr string) string {
 		return ""
 	}
 	return port
+}
+
+func hostnameFromURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil {
+		if host := parsed.Hostname(); host != "" {
+			return host
+		}
+	}
+	return ""
 }

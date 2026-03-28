@@ -199,8 +199,8 @@ fi
 echo
 
 frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Public frontend URL" "$(get_env_value "FRONTEND_BASE_URL")")"
-if [ -z "$frontend_base_url" ] || [ "$frontend_base_url" = "http://localhost:3000" ]; then
-  frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Public frontend URL" "http://localhost:3000")"
+if [ -z "$frontend_base_url" ] || [ "$frontend_base_url" = "http://localhost" ]; then
+  frontend_base_url="$(prompt_value "FRONTEND_BASE_URL" "Public frontend URL" "http://localhost")"
 fi
 
 cors_allowed_origins="$(prompt_value "CORS_ALLOWED_ORIGINS" "Allowed CORS origins (comma separated)" "$frontend_base_url")"

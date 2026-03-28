@@ -37,6 +37,9 @@ type Manager struct {
 	metrics    *observability.Metrics
 	breakersMu sync.Mutex
 	breakers   map[string]*targetCircuitState
+	adminHost  string
+	adminUI    http.Handler
+	adminAPI   http.Handler
 }
 
 type RuntimeRoute struct {
@@ -84,6 +87,9 @@ type compiledAccessWindow struct {
 type ManagerOptions struct {
 	LocalCacheTTL      time.Duration
 	LocalCacheCapacity int
+	AdminHost          string
+	AdminUITargetURL   string
+	AdminAPITargetURL  string
 }
 
 type targetCircuitState struct {
@@ -111,6 +117,20 @@ func NewManager(routingStore RoutingStore, cache ConfigCache, bus ConfigBus, aut
 		options.LocalCacheCapacity = 1024
 	}
 
+	var adminUIHandler http.Handler
+	if strings.TrimSpace(options.AdminUITargetURL) != "" {
+		if target, err := url.Parse(strings.TrimSpace(options.AdminUITargetURL)); err == nil {
+			adminUIHandler = reverseProxyForTarget(target, transport, "/")
+		}
+	}
+
+	var adminAPIHandler http.Handler
+	if strings.TrimSpace(options.AdminAPITargetURL) != "" {
+		if target, err := url.Parse(strings.TrimSpace(options.AdminAPITargetURL)); err == nil {
+			adminAPIHandler = reverseProxyForTarget(target, transport, "/")
+		}
+	}
+
 	return &Manager{
 		routes:     routingStore,
 		cache:      cache,
@@ -122,6 +142,9 @@ func NewManager(routingStore RoutingStore, cache ConfigCache, bus ConfigBus, aut
 		localCache: newTTLLRU[string, []Route](options.LocalCacheCapacity, options.LocalCacheTTL),
 		metrics:    metrics,
 		breakers:   make(map[string]*targetCircuitState),
+		adminHost:  normalizeHost(options.AdminHost),
+		adminUI:    adminUIHandler,
+		adminAPI:   adminAPIHandler,
 	}
 }
 
@@ -251,6 +274,14 @@ func (m *Manager) Handler() http.Handler {
 		host := normalizeHost(r.Host)
 		path := normalizePath(r.URL.Path)
 
+		if m.isAdminHost(host) {
+			if m.handleAdminHost(writer, r, path) {
+				outcome = "admin"
+				reason = "admin_host"
+				return
+			}
+		}
+
 		route, ok := m.matchRoute(r.Context(), host, path)
 		if !ok {
 			outcome = "not_found"
@@ -319,6 +350,26 @@ func (m *Manager) matchRoute(ctx context.Context, host, path string) (Route, boo
 		}
 	}
 	return Route{}, false
+}
+
+func (m *Manager) isAdminHost(host string) bool {
+	return m.adminHost != "" && normalizeHost(host) == m.adminHost
+}
+
+func (m *Manager) handleAdminHost(w http.ResponseWriter, r *http.Request, path string) bool {
+	if strings.HasPrefix(path, "/api/") || path == "/livez" || path == "/readyz" || path == "/healthz" || path == "/metrics" {
+		if m.adminAPI != nil {
+			m.adminAPI.ServeHTTP(w, r)
+			return true
+		}
+		return false
+	}
+
+	if m.adminUI != nil {
+		m.adminUI.ServeHTTP(w, r)
+		return true
+	}
+	return false
 }
 
 func (m *Manager) resolveRoutesForHost(ctx context.Context, host string) ([]Route, error) {
@@ -428,29 +479,8 @@ func (m *Manager) routeFromConfig(config RouteConfig) (Route, error) {
 		revision = atomic.AddUint64(&m.revision, 1)
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.Transport = &retryTransport{base: m.transport, retries: 1, backoff: 100 * time.Millisecond}
-	originalDirector := proxy.Director
 	routePath := normalizePath(config.Path)
-	proxy.Director = func(req *http.Request) {
-		incomingHost := req.Host
-		incomingProto := forwardedProto(req)
-		originalURI := req.URL.RequestURI()
-		req.URL.Path = stripRoutePrefix(routePath, req.URL.Path)
-		if req.URL.RawPath != "" {
-			req.URL.RawPath = stripRoutePrefix(routePath, req.URL.RawPath)
-		}
-		originalDirector(req)
-		req.Host = target.Host
-		req.Header.Set("X-Forwarded-Host", normalizeHost(incomingHost))
-		req.Header.Set("X-Forwarded-Proto", incomingProto)
-		req.Header.Set("X-Forwarded-Uri", originalURI)
-		if routePath != "/" {
-			req.Header.Set("X-Forwarded-Prefix", routePath)
-		} else {
-			req.Header.Del("X-Forwarded-Prefix")
-		}
-	}
+	proxy := reverseProxyForTarget(target, m.transport, routePath)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		m.recordTargetFailure(config.TargetURL, err)
 		writeProxyError(w, http.StatusBadGateway, "upstream_unavailable", "upstream target request failed")
@@ -482,6 +512,35 @@ func (m *Manager) routeFromConfig(config RouteConfig) (Route, error) {
 		DeploymentRevision:    revision,
 		ReverseProxyHandler:   proxy,
 	}, nil
+}
+
+func reverseProxyForTarget(target *url.URL, transport *http.Transport, routePath string) *httputil.ReverseProxy {
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.Transport = &retryTransport{base: transport, retries: 1, backoff: 100 * time.Millisecond}
+	originalDirector := proxy.Director
+	normalizedRoutePath := normalizePath(routePath)
+
+	proxy.Director = func(req *http.Request) {
+		incomingHost := req.Host
+		incomingProto := forwardedProto(req)
+		originalURI := req.URL.RequestURI()
+		req.URL.Path = stripRoutePrefix(normalizedRoutePath, req.URL.Path)
+		if req.URL.RawPath != "" {
+			req.URL.RawPath = stripRoutePrefix(normalizedRoutePath, req.URL.RawPath)
+		}
+		originalDirector(req)
+		req.Host = target.Host
+		req.Header.Set("X-Forwarded-Host", normalizeHost(incomingHost))
+		req.Header.Set("X-Forwarded-Proto", incomingProto)
+		req.Header.Set("X-Forwarded-Uri", originalURI)
+		if normalizedRoutePath != "/" {
+			req.Header.Set("X-Forwarded-Prefix", normalizedRoutePath)
+		} else {
+			req.Header.Del("X-Forwarded-Prefix")
+		}
+	}
+
+	return proxy
 }
 
 func (m *Manager) logAccess(r *http.Request, writer middleware.WrapResponseWriter, startedAt time.Time, route *Route, user *domain.User, outcome, reason string) {

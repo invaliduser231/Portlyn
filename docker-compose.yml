@@ -38,8 +38,8 @@ services:
       TOKEN_TTL: "${TOKEN_TTL:-24h}"
       REFRESH_TOKEN_TTL: "${REFRESH_TOKEN_TTL:-720h}"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
-      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
-      FRONTEND_BASE_URL: "${FRONTEND_BASE_URL:-http://localhost:3000}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}"
+      FRONTEND_BASE_URL: "${FRONTEND_BASE_URL:-http://localhost}"
       APP_VERSION: "${APP_VERSION:-docker}"
       ADMIN_EMAIL: "${ADMIN_EMAIL:?set ADMIN_EMAIL in .env.docker}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env.docker}"
@@ -97,8 +97,6 @@ services:
         INTERNAL_API_BASE_URL: "http://portlyn:8080"
     restart: unless-stopped
     init: true
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
