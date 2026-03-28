@@ -1,0 +1,272 @@
+package acme
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"io/fs"
+	"path"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/caddyserver/certmagic"
+	"gorm.io/gorm"
+
+	"portlyn/internal/domain"
+)
+
+type CertMagicStorage struct {
+	db           *gorm.DB
+	lockTTL      time.Duration
+	renewEvery   time.Duration
+	owners       map[string]string
+	ownerCancels map[string]context.CancelFunc
+	mu           sync.Mutex
+}
+
+func NewCertMagicStorage(db *gorm.DB, lockTTL time.Duration) *CertMagicStorage {
+	if lockTTL <= 0 {
+		lockTTL = 30 * time.Second
+	}
+	return &CertMagicStorage{
+		db:           db,
+		lockTTL:      lockTTL,
+		renewEvery:   lockTTL / 3,
+		owners:       make(map[string]string),
+		ownerCancels: make(map[string]context.CancelFunc),
+	}
+}
+
+func (s *CertMagicStorage) Store(ctx context.Context, key string, value []byte) error {
+	key = cleanKey(key)
+	item := domain.DistributedKV{
+		Bucket:     "certmagic",
+		Key:        key,
+		Value:      append([]byte(nil), value...),
+		ModifiedAt: time.Now().UTC(),
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("bucket = ? AND key = ?", item.Bucket, item.Key).Delete(&domain.DistributedKV{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&item).Error
+	})
+}
+
+func (s *CertMagicStorage) Load(ctx context.Context, key string) ([]byte, error) {
+	var item domain.DistributedKV
+	err := s.db.WithContext(ctx).Where("bucket = ? AND key = ?", "certmagic", cleanKey(key)).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fs.ErrNotExist
+	}
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), item.Value...), nil
+}
+
+func (s *CertMagicStorage) Delete(ctx context.Context, key string) error {
+	key = cleanKey(key)
+	return s.db.WithContext(ctx).
+		Where("bucket = ? AND (key = ? OR key LIKE ?)", "certmagic", key, key+"/%").
+		Delete(&domain.DistributedKV{}).Error
+}
+
+func (s *CertMagicStorage) Exists(ctx context.Context, key string) bool {
+	var count int64
+	_ = s.db.WithContext(ctx).
+		Model(&domain.DistributedKV{}).
+		Where("bucket = ? AND (key = ? OR key LIKE ?)", "certmagic", cleanKey(key), cleanKey(key)+"/%").
+		Count(&count).Error
+	return count > 0
+}
+
+func (s *CertMagicStorage) List(ctx context.Context, prefix string, recursive bool) ([]string, error) {
+	prefix = cleanKey(prefix)
+	var rows []domain.DistributedKV
+	if err := s.db.WithContext(ctx).
+		Where("bucket = ? AND (key = ? OR key LIKE ?)", "certmagic", prefix, prefix+"/%").
+		Order("key asc").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(rows))
+	seen := make(map[string]struct{})
+	for _, row := range rows {
+		if recursive {
+			keys = append(keys, row.Key)
+			continue
+		}
+		relative := strings.TrimPrefix(row.Key, prefix)
+		relative = strings.TrimPrefix(relative, "/")
+		if relative == "" {
+			keys = append(keys, row.Key)
+			continue
+		}
+		head := strings.Split(relative, "/")[0]
+		candidate := prefix
+		if head != "" {
+			candidate = path.Join(prefix, head)
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		keys = append(keys, candidate)
+	}
+	if len(keys) == 0 {
+		return nil, fs.ErrNotExist
+	}
+	return keys, nil
+}
+
+func (s *CertMagicStorage) Stat(ctx context.Context, key string) (certmagic.KeyInfo, error) {
+	key = cleanKey(key)
+	var exact domain.DistributedKV
+	err := s.db.WithContext(ctx).Where("bucket = ? AND key = ?", "certmagic", key).First(&exact).Error
+	if err == nil {
+		return certmagic.KeyInfo{
+			Key:        key,
+			Modified:   exact.ModifiedAt,
+			Size:       int64(len(exact.Value)),
+			IsTerminal: true,
+		}, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return certmagic.KeyInfo{}, err
+	}
+	if s.Exists(ctx, key) {
+		return certmagic.KeyInfo{Key: key, IsTerminal: false}, nil
+	}
+	return certmagic.KeyInfo{}, fs.ErrNotExist
+}
+
+func (s *CertMagicStorage) Lock(ctx context.Context, name string) error {
+	for {
+		ok, err := s.tryAcquire(ctx, cleanKey(name))
+		if err != nil {
+			return err
+		}
+		if ok {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+func (s *CertMagicStorage) Unlock(ctx context.Context, name string) error {
+	name = cleanKey(name)
+
+	s.mu.Lock()
+	owner := s.owners[name]
+	cancel := s.ownerCancels[name]
+	delete(s.owners, name)
+	delete(s.ownerCancels, name)
+	s.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if owner == "" {
+		return nil
+	}
+	return s.db.WithContext(ctx).Where("name = ? AND owner = ?", name, owner).Delete(&domain.DistributedLock{}).Error
+}
+
+func (s *CertMagicStorage) RenewLockLease(ctx context.Context, lockKey string, leaseDuration time.Duration) error {
+	s.mu.Lock()
+	owner := s.owners[cleanKey(lockKey)]
+	s.mu.Unlock()
+	if owner == "" {
+		return nil
+	}
+	if leaseDuration <= 0 {
+		leaseDuration = s.lockTTL
+	}
+	return s.db.WithContext(ctx).
+		Model(&domain.DistributedLock{}).
+		Where("name = ? AND owner = ?", cleanKey(lockKey), owner).
+		Update("expires_at", time.Now().UTC().Add(leaseDuration)).Error
+}
+
+func (s *CertMagicStorage) tryAcquire(ctx context.Context, name string) (bool, error) {
+	owner := randomOwner()
+	acquired := false
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now().UTC()
+		if err := tx.Where("expires_at <= ?", now).Delete(&domain.DistributedLock{}).Error; err != nil {
+			return err
+		}
+
+		lock := domain.DistributedLock{
+			Name:      name,
+			Owner:     owner,
+			ExpiresAt: now.Add(s.lockTTL),
+		}
+		if err := tx.Create(&lock).Error; err != nil {
+			return nil
+		}
+		acquired = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if !acquired {
+		return false, nil
+	}
+
+	s.startLease(name, owner)
+	return true, nil
+}
+
+func (s *CertMagicStorage) startLease(name, owner string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if cancel, ok := s.ownerCancels[name]; ok {
+		cancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.owners[name] = owner
+	s.ownerCancels[name] = cancel
+
+	go func() {
+		ticker := time.NewTicker(s.renewEvery)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = s.db.WithContext(context.Background()).
+					Model(&domain.DistributedLock{}).
+					Where("name = ? AND owner = ?", name, owner).
+					Update("expires_at", time.Now().UTC().Add(s.lockTTL)).Error
+			}
+		}
+	}()
+}
+
+func cleanKey(key string) string {
+	return strings.Trim(strings.ReplaceAll(key, "\\", "/"), "/")
+}
+
+func randomOwner() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return hex.EncodeToString([]byte(time.Now().UTC().Format(time.RFC3339Nano)))
+	}
+	return hex.EncodeToString(buf)
+}
+
+var _ certmagic.Storage = (*CertMagicStorage)(nil)

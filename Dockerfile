@@ -1,0 +1,30 @@
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/server ./cmd/server
+
+FROM alpine:3.20
+
+WORKDIR /app
+
+RUN apk add --no-cache ca-certificates tzdata wget && \
+    addgroup -S app && \
+    adduser -S app -G app && \
+    mkdir -p /data /data/certificates && \
+    chown -R app:app /app /data
+
+COPY --from=builder /app/server /app/server
+
+USER app
+
+EXPOSE 8080 80 443
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 CMD wget -qO- http://127.0.0.1:8080/readyz >/dev/null || exit 1
+
+ENTRYPOINT ["/app/server"]

@@ -1,0 +1,37 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local env
+.env
+.env.local
+.env.*.local
+.env.docker
+
+# Temporary files
+.tmp/
+tmp/
+*.log
+*.pid
+
+# Go
+bin/
+dist/
+coverage/
+*.test
+*.out
+*.exe
+.gomodcache/
+
+# Data / local runtime artifacts
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+

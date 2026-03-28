@@ -1,0 +1,12 @@
+.git
+.idea
+portlyn.db
+tmp
+dist
+bin
+.gocache
+.gomodcache
+*.exe
+server
+frontend/node_modules
+frontend/.next
