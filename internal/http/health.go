@@ -165,7 +165,7 @@ func ServiceTargetsFromDomain(services []domain.Service) []HTTPHealthTarget {
 	targets := make([]HTTPHealthTarget, 0, len(services))
 	for _, service := range services {
 		name := strings.TrimSpace(service.Name)
-		if domainName := strings.TrimSpace(service.Domain.Name); domainName != "" {
+		if domainName := strings.TrimSpace(domain.ServiceHost(service)); domainName != "" {
 			name = fmt.Sprintf("%s (%s%s)", name, domainName, strings.TrimSpace(service.Path))
 		}
 		targets = append(targets, HTTPHealthTarget{Name: name, URL: strings.TrimSpace(service.TargetURL)})

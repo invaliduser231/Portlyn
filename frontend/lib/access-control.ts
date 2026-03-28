@@ -31,6 +31,7 @@ export function defaultServicePayload(service?: Partial<Service>): ServicePayloa
   return {
     name: service?.name || "",
     domain_id: service?.domain_id || 0,
+    subdomain: service?.subdomain || "",
     path: service?.path || "/",
     target_url: service?.target_url || "",
     tls_mode: service?.tls_mode || "offload",

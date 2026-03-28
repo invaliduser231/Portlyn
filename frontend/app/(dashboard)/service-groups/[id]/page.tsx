@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { apiFetch, ApiError } from "@/lib/api";
 import { buildServiceGroupRequestPayload } from "@/lib/access-control";
+import { serviceHostname } from "@/lib/service-host";
 import type { Group as UserGroup, Service, ServiceGroup, ServiceGroupPayload } from "@/lib/types";
 
 export default function ServiceGroupDetailPage({ params }: { params: { id: string } }) {
@@ -193,7 +194,7 @@ export default function ServiceGroupDetailPage({ params }: { params: { id: strin
                 <MantineGroup align="end">
                   <Select
                     label="Assign service"
-                    data={availableServices.map((service) => ({ value: String(service.id), label: service.name }))}
+                    data={availableServices.map((service) => ({ value: String(service.id), label: `${service.name} (${serviceHostname(service) || `#${service.domain_id}`})` }))}
                     value={selectedServiceId}
                     onChange={setSelectedServiceId}
                     searchable
@@ -221,7 +222,7 @@ export default function ServiceGroupDetailPage({ params }: { params: { id: strin
                         {(item.services || []).map((service) => (
                           <Table.Tr key={service.id}>
                             <Table.Td>{service.name}</Table.Td>
-                            <Table.Td>{service.domain?.name || `#${service.domain_id}`}</Table.Td>
+                            <Table.Td>{serviceHostname(service) || `#${service.domain_id}`}</Table.Td>
                             <Table.Td>{service.path}</Table.Td>
                             <Table.Td><AccessMethodBadge value={service.effective_access_method || service.access_method || "session"} /></Table.Td>
                             <Table.Td>

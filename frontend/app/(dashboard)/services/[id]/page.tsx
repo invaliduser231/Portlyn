@@ -13,6 +13,7 @@ import { AccessMethodBadge, AccessModeBadge, AuthPolicyBadge, StatusBadge } from
 import { buildServiceRequestPayload, legacyAuthPolicyFromAccessMode } from "@/lib/access-control";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import { serviceHostname } from "@/lib/service-host";
 import type { Domain, Group as UserGroup, Service, ServiceGroup, ServicePayload } from "@/lib/types";
 
 export default function ServiceDetailPage({ params }: { params: { id: string } }) {
@@ -133,7 +134,7 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
                   {service.name}
                 </Text>
                 <Text c="dimmed" size="sm">
-                  {service.domain?.name || `Domain #${service.domain_id}`} · {service.path}
+                  {serviceHostname(service) || `Domain #${service.domain_id}`} · {service.path}
                 </Text>
               </div>
               <Stack gap="xs" align="flex-end">

@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { AccessMethodBadge, AccessModeBadge, RiskBadge, StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
+import { serviceHostname } from "@/lib/service-host";
 import type { Service } from "@/lib/types";
 
 export function ServiceTable({
@@ -43,7 +44,7 @@ export function ServiceTable({
                   Rev {service.deployment_revision}
                 </Text>
               </Table.Td>
-              <Table.Td>{service.domain?.name || `#${service.domain_id}`}</Table.Td>
+              <Table.Td>{serviceHostname(service) || `#${service.domain_id}`}</Table.Td>
               <Table.Td>{service.path}</Table.Td>
               <Table.Td><Text size="sm" c="#c9d2df">{service.target_url}</Text></Table.Td>
               <Table.Td>

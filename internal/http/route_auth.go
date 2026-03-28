@@ -189,7 +189,7 @@ func buildRouteAuthServiceResponse(service domain.Service) routeAuthServiceRespo
 	response := routeAuthServiceResponse{
 		ID:                    service.ID,
 		Name:                  service.Name,
-		DomainName:            service.Domain.Name,
+		DomainName:            domain.ServiceHost(service),
 		Path:                  service.Path,
 		AccessMode:            policy.AccessMode,
 		AccessMethod:          method,

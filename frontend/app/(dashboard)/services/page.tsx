@@ -13,6 +13,7 @@ import { ServiceForm } from "@/components/services/service-form";
 import { ServiceTable } from "@/components/services/service-table";
 import { accessMethodLabel, buildServiceRequestPayload, legacyAuthPolicyFromAccessMode } from "@/lib/access-control";
 import { apiFetch, ApiError } from "@/lib/api";
+import { serviceHostname } from "@/lib/service-host";
 import type { AccessMode, Domain, Group as UserGroup, Service, ServiceGroup, ServicePayload } from "@/lib/types";
 
 export default function ServicesPage() {
@@ -35,7 +36,7 @@ export default function ServicesPage() {
     if (typeof window === "undefined") {
       return;
     }
-    const domainName = service.domain?.name || "";
+    const domainName = serviceHostname(service);
     const returnTo = domainName ? `${window.location.protocol}//${domainName}${service.path}` : undefined;
     const params = new URLSearchParams({ serviceId: String(service.id) });
     if (returnTo) {
@@ -74,7 +75,7 @@ export default function ServicesPage() {
       services.filter((service) => {
         const matchesSearch =
           !search ||
-          [service.name, service.path, service.target_url, service.domain?.name || ""].some((value) =>
+          [service.name, service.path, service.target_url, serviceHostname(service)].some((value) =>
             value.toLowerCase().includes(search.toLowerCase())
           );
         const matchesPolicy = accessMode === "all" || (service.effective_access_mode || service.access_mode) === accessMode;
@@ -170,7 +171,7 @@ export default function ServicesPage() {
                       <div>
                         <Text fw={600}>{service.name}</Text>
                         <Text size="sm" c="dimmed">
-                          {service.domain?.name}{service.path}
+                          {serviceHostname(service)}{service.path}
                         </Text>
                       </div>
                       <Badge variant="light" color="gray">

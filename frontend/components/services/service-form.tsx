@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 
 import { AccessPolicyFields } from "@/components/access-policy-fields";
 import { accessWindowLabel, defaultServicePayload, linesToList, listToLines } from "@/lib/access-control";
+import { buildServiceHostname } from "@/lib/service-host";
 import type {
   AccessWindow,
   Domain,
@@ -77,6 +78,9 @@ export function ServiceForm({
     setValues((current) => ({ ...current, [key]: value }));
   };
 
+  const selectedDomain = domains.find((domain) => domain.id === values.domain_id);
+  const hostnamePreview = buildServiceHostname(selectedDomain?.name, values.subdomain);
+
   const handleSubmit = async () => {
     await onSubmit({
       ...values,
@@ -108,7 +112,7 @@ export function ServiceForm({
               </Grid.Col>
               <Grid.Col span={{ base: 12, md: 6 }}>
                 <Select
-                  label="Domain"
+                  label="Root domain"
                   data={domains.map((domain) => ({ value: String(domain.id), label: domain.name }))}
                   value={values.domain_id ? String(values.domain_id) : null}
                   onChange={(value) => update("domain_id", Number(value || 0))}
@@ -116,10 +120,22 @@ export function ServiceForm({
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, md: 6 }}>
+                <TextInput
+                  label="Subdomain"
+                  value={values.subdomain}
+                  onChange={(event) => update("subdomain", event.currentTarget.value)}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
                 <TextInput label="Path" value={values.path} onChange={(event) => update("path", event.currentTarget.value)} />
               </Grid.Col>
               <Grid.Col span={{ base: 12, md: 6 }}>
                 <TextInput label="Target URL" value={values.target_url} onChange={(event) => update("target_url", event.currentTarget.value)} />
+              </Grid.Col>
+              <Grid.Col span={12}>
+                <Text size="sm" c="dimmed">
+                  Public host: {hostnamePreview || "Select a root domain"}
+                </Text>
               </Grid.Col>
               <Grid.Col span={{ base: 12, md: 6 }}>
                 <Select

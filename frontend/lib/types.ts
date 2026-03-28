@@ -159,6 +159,8 @@ export interface Service {
   name: string;
   domain_id: number;
   domain?: Domain;
+  subdomain: string;
+  hostname?: string;
   path: string;
   target_url: string;
   tls_mode: TLSMode;
@@ -477,6 +479,7 @@ export interface NodePayload {
 export interface ServicePayload {
   name: string;
   domain_id: number;
+  subdomain: string;
   path: string;
   target_url: string;
   tls_mode: TLSMode;

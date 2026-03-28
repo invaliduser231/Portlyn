@@ -132,6 +132,7 @@ type accessMethodConfigRequest struct {
 type createServiceRequest struct {
 	Name               string                    `json:"name" validate:"required,min=2,max=255"`
 	DomainID           uint                      `json:"domain_id" validate:"required,gt=0"`
+	Subdomain          string                    `json:"subdomain" validate:"omitempty,max=255"`
 	Path               string                    `json:"path" validate:"required,max=255"`
 	TargetURL          string                    `json:"target_url" validate:"required,url"`
 	TLSMode            string                    `json:"tls_mode" validate:"required,oneof=offload passthrough none"`
@@ -150,6 +151,7 @@ type createServiceRequest struct {
 type updateServiceRequest struct {
 	Name               *string                    `json:"name" validate:"omitempty,min=2,max=255"`
 	DomainID           *uint                      `json:"domain_id" validate:"omitempty,gt=0"`
+	Subdomain          *string                    `json:"subdomain" validate:"omitempty,max=255"`
 	Path               *string                    `json:"path" validate:"omitempty,max=255"`
 	TargetURL          *string                    `json:"target_url" validate:"omitempty,url"`
 	TLSMode            *string                    `json:"tls_mode" validate:"omitempty,oneof=offload passthrough none"`

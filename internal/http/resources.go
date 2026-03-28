@@ -245,6 +245,11 @@ func (s *Server) handleUpdateDomain(w stdhttp.ResponseWriter, r *stdhttp.Request
 		return
 	}
 	previousHost := normalizeHostname(item.Name)
+	affectedServices, err := s.services.ListByDomainID(r.Context(), item.ID)
+	if err != nil {
+		s.internalError(w, err)
+		return
+	}
 
 	var req updateDomainRequest
 	if !s.decodeAndValidate(w, r, &req) {
@@ -273,15 +278,9 @@ func (s *Server) handleUpdateDomain(w stdhttp.ResponseWriter, r *stdhttp.Request
 		s.internalError(w, err)
 		return
 	}
-	if err := s.proxy.InvalidateHost(r.Context(), previousHost); err != nil {
+	if err := s.invalidateServiceHostsForDomain(r.Context(), previousHost, item.Name, affectedServices); err != nil {
 		s.internalError(w, err)
 		return
-	}
-	if currentHost := normalizeHostname(item.Name); currentHost != previousHost {
-		if err := s.proxy.InvalidateHost(r.Context(), currentHost); err != nil {
-			s.internalError(w, err)
-			return
-		}
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "update", "domain", &item.ID, item)
 	writeJSON(w, stdhttp.StatusOK, item)
@@ -292,13 +291,18 @@ func (s *Server) handleDeleteDomain(w stdhttp.ResponseWriter, r *stdhttp.Request
 	if !ok {
 		return
 	}
+	affectedServices, err := s.services.ListByDomainID(r.Context(), item.ID)
+	if err != nil {
+		s.internalError(w, err)
+		return
+	}
 	id := item.ID
 	host := normalizeHostname(item.Name)
 	if err := s.domains.Delete(r.Context(), id); err != nil {
 		s.handleStoreError(w, err)
 		return
 	}
-	if err := s.proxy.InvalidateHost(r.Context(), host); err != nil {
+	if err := s.invalidateServiceHostsForDomain(r.Context(), host, "", affectedServices); err != nil {
 		s.internalError(w, err)
 		return
 	}
@@ -629,9 +633,16 @@ func (s *Server) handleCreateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 		return
 	}
 
+	subdomain, err := domain.NormalizeSubdomain(req.Subdomain)
+	if err != nil {
+		writeError(w, stdhttp.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
 	item := &domain.Service{
 		Name:                 req.Name,
 		DomainID:             req.DomainID,
+		Subdomain:            subdomain,
 		Path:                 req.Path,
 		TargetURL:            req.TargetURL,
 		TLSMode:              req.TLSMode,
@@ -680,7 +691,7 @@ func (s *Server) handleUpdateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 	if !ok {
 		return
 	}
-	previousHost := normalizeHostname(item.Domain.Name)
+	previousHost := domain.ServiceHost(*item)
 
 	var req updateServiceRequest
 	if !s.decodeAndValidate(w, r, &req) {
@@ -695,6 +706,14 @@ func (s *Server) handleUpdateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 			return
 		}
 		item.DomainID = *req.DomainID
+	}
+	if req.Subdomain != nil {
+		subdomain, err := domain.NormalizeSubdomain(*req.Subdomain)
+		if err != nil {
+			writeError(w, stdhttp.StatusBadRequest, "validation_error", err.Error())
+			return
+		}
+		item.Subdomain = subdomain
 	}
 	if req.Path != nil {
 		item.Path = *req.Path
@@ -756,7 +775,7 @@ func (s *Server) handleUpdateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 		s.internalError(w, err)
 		return
 	}
-	if previousHost != "" && normalizeHostname(deployed.Domain.Name) != previousHost {
+	if previousHost != "" && domain.ServiceHost(*deployed) != previousHost {
 		if err := s.proxy.InvalidateHost(r.Context(), previousHost); err != nil {
 			s.internalError(w, err)
 			return
@@ -773,7 +792,7 @@ func (s *Server) handleDeleteService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 		return
 	}
 	id := item.ID
-	host := normalizeHostname(item.Domain.Name)
+	host := domain.ServiceHost(*item)
 	if err := s.services.Delete(r.Context(), id); err != nil {
 		s.handleStoreError(w, err)
 		return
@@ -784,6 +803,27 @@ func (s *Server) handleDeleteService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "delete", "service", &id, map[string]any{"id": id})
 	w.WriteHeader(stdhttp.StatusNoContent)
+}
+
+func (s *Server) invalidateServiceHostsForDomain(ctx context.Context, previousDomainName, currentDomainName string, services []domain.Service) error {
+	hosts := make(map[string]struct{})
+	addHost := func(value string) {
+		if normalized := normalizeHostname(value); normalized != "" {
+			hosts[normalized] = struct{}{}
+		}
+	}
+	addHost(previousDomainName)
+	addHost(currentDomainName)
+	for _, service := range services {
+		addHost(domain.ServiceHostname(previousDomainName, service.Subdomain))
+		addHost(domain.ServiceHostname(currentDomainName, service.Subdomain))
+	}
+	for host := range hosts {
+		if err := s.proxy.InvalidateHost(ctx, host); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Server) handleListAuditLogs(w stdhttp.ResponseWriter, r *stdhttp.Request) {

@@ -351,6 +351,7 @@ type Service struct {
 	Name                 string           `gorm:"size:255;not null" json:"name"`
 	DomainID             uint             `gorm:"index;not null" json:"domain_id"`
 	Domain               Domain           `json:"domain,omitempty"`
+	Subdomain            string           `gorm:"size:255" json:"subdomain"`
 	Path                 string           `gorm:"size:255;not null;default:/" json:"path"`
 	TargetURL            string           `gorm:"size:512;not null" json:"target_url"`
 	TLSMode              string           `gorm:"size:64;not null" json:"tls_mode"`

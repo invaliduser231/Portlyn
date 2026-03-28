@@ -24,20 +24,21 @@ func NewRoutingStore(db *gorm.DB) *SQLRoutingStore {
 
 func (s *SQLRoutingStore) GetRoutesForHost(ctx context.Context, host string) ([]routing.RouteConfig, error) {
 	var services []domain.Service
+	host = strings.ToLower(strings.TrimSpace(host))
 	err := s.baseQuery(ctx).
-		Where(`LOWER("Domain"."name") = ?`, strings.ToLower(strings.TrimSpace(host))).
+		Where(`LOWER("Domain"."name") IN ?`, domainCandidatesForHost(host)).
 		Order("services.path asc").
 		Find(&services).Error
 	if err != nil {
 		return nil, err
 	}
-	return s.toRouteConfigs(services), nil
+	return filterRoutesByHost(s.toRouteConfigs(services), host), nil
 }
 
 func (s *SQLRoutingStore) ListRoutes(ctx context.Context, filter routing.RouteFilter) ([]routing.RouteConfig, error) {
 	query := s.baseQuery(ctx)
 	if filter.Host != "" {
-		query = query.Where(`LOWER("Domain"."name") = ?`, strings.ToLower(strings.TrimSpace(filter.Host)))
+		query = query.Where(`LOWER("Domain"."name") IN ?`, domainCandidatesForHost(filter.Host))
 	}
 	if filter.ServiceID != "" {
 		if parsed, err := strconv.ParseUint(filter.ServiceID, 10, 64); err == nil {
@@ -58,7 +59,7 @@ func (s *SQLRoutingStore) ListRoutes(ctx context.Context, filter routing.RouteFi
 	if err := query.Order(`"Domain"."name" asc, services.path asc, services.id asc`).Find(&services).Error; err != nil {
 		return nil, err
 	}
-	return s.toRouteConfigs(services), nil
+	return filterRoutesByHost(s.toRouteConfigs(services), filter.Host), nil
 }
 
 func (s *SQLRoutingStore) GetRouteByID(ctx context.Context, id string) (*routing.RouteConfig, error) {
@@ -151,7 +152,7 @@ func (s *SQLRoutingStore) toRouteConfigs(services []domain.Service) []routing.Ro
 			ServiceID:             service.ID,
 			ServiceName:           service.Name,
 			DomainID:              service.DomainID,
-			Host:                  strings.ToLower(strings.TrimSpace(service.Domain.Name)),
+			Host:                  domain.ServiceHost(service),
 			Path:                  service.Path,
 			TargetURL:             service.TargetURL,
 			TLSMode:               service.TLSMode,
@@ -169,6 +170,36 @@ func (s *SQLRoutingStore) toRouteConfigs(services []domain.Service) []routing.Ro
 		})
 	}
 	return routes
+}
+
+func filterRoutesByHost(routes []routing.RouteConfig, host string) []routing.RouteConfig {
+	normalizedHost := strings.ToLower(strings.TrimSpace(host))
+	if normalizedHost == "" {
+		return routes
+	}
+	filtered := make([]routing.RouteConfig, 0, len(routes))
+	for _, route := range routes {
+		if strings.ToLower(strings.TrimSpace(route.Host)) == normalizedHost {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
+}
+
+func domainCandidatesForHost(host string) []string {
+	normalizedHost := strings.ToLower(strings.TrimSpace(host))
+	if normalizedHost == "" {
+		return nil
+	}
+	parts := strings.Split(normalizedHost, ".")
+	candidates := make([]string, 0, len(parts))
+	for i := range parts {
+		candidate := strings.Join(parts[i:], ".")
+		if candidate != "" {
+			candidates = append(candidates, candidate)
+		}
+	}
+	return candidates
 }
 
 func effectiveAccessForService(service domain.Service) (domain.AccessPolicy, string, domain.JSONObject, *domain.ServiceGroup) {

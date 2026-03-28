@@ -327,7 +327,7 @@ func summarizeRiskyServices(items []domain.Service, settings *domain.AppSettings
 		entry := map[string]any{
 			"id":               item.ID,
 			"name":             item.Name,
-			"domain_name":      item.Domain.Name,
+			"domain_name":      domain.ServiceHost(item),
 			"path":             item.Path,
 			"access_mode":      policy.AccessMode,
 			"access_method":    method,
