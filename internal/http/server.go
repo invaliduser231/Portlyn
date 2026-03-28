@@ -290,7 +290,7 @@ func (s *Server) handleLogin(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		return
 	}
 	_ = s.audit.LogRequest(r.Context(), r, &result.User.ID, "login_succeeded", "auth", nil, map[string]any{"email": result.User.Email, "method": "password"})
-	s.writeLoginResult(w, result)
+	s.writeLoginResult(w, r, result)
 }
 
 func (s *Server) handleMe(w stdhttp.ResponseWriter, r *stdhttp.Request) {

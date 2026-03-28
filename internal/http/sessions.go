@@ -37,8 +37,9 @@ func (s *Server) handleRevokeMySession(w stdhttp.ResponseWriter, r *stdhttp.Requ
 	}
 	token := s.auth.SessionTokenFromRequest(r)
 	if claims, err := s.auth.ParseToken(token); err == nil && claims.SessionID == sessionID {
-		s.auth.ClearSessionCookie(w)
-		s.auth.ClearRefreshCookie(w)
+		secure := requestSecure(r)
+		s.auth.ClearSessionCookie(w, secure)
+		s.auth.ClearRefreshCookie(w, secure)
 	}
 	_ = s.audit.LogRequest(r.Context(), r, &user.ID, "session_revoked", "session", &sessionID, map[string]any{"session_id": sessionID})
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"ok": true, "revoked_at": time.Now().UTC()})
@@ -54,8 +55,9 @@ func (s *Server) handleRevokeAllMySessions(w stdhttp.ResponseWriter, r *stdhttp.
 		s.internalError(w, err)
 		return
 	}
-	s.auth.ClearSessionCookie(w)
-	s.auth.ClearRefreshCookie(w)
+	secure := requestSecure(r)
+	s.auth.ClearSessionCookie(w, secure)
+	s.auth.ClearRefreshCookie(w, secure)
 	_ = s.audit.LogRequest(r.Context(), r, &user.ID, "session_revoke_all", "session", nil, map[string]any{"user_id": user.ID})
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"ok": true})
 }

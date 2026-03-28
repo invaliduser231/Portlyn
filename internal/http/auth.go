@@ -67,7 +67,7 @@ func (s *Server) handleVerifyOTP(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 	}
 
 	_ = s.audit.LogRequest(r.Context(), r, &result.User.ID, "otp_login_succeeded", "auth", nil, map[string]any{"email": result.User.Email, "method": "otp"})
-	s.writeLoginResult(w, result)
+	s.writeLoginResult(w, r, result)
 }
 
 func (s *Server) handleOIDCStart(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -124,8 +124,9 @@ func (s *Server) handleOIDCCallback(w stdhttp.ResponseWriter, r *stdhttp.Request
 		})
 		return
 	}
-	s.auth.SetSessionCookie(w, result.Token)
-	s.auth.SetRefreshCookie(w, result.RefreshToken)
+	secure := requestSecure(r)
+	s.auth.SetSessionCookie(w, result.Token, secure)
+	s.auth.SetRefreshCookie(w, result.RefreshToken, secure)
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": result.Token, "user": result.User, "next": next})
 }
 
@@ -145,8 +146,9 @@ func (s *Server) handleRefreshSession(w stdhttp.ResponseWriter, r *stdhttp.Reque
 		}
 		return
 	}
-	s.auth.SetSessionCookie(w, result.Token)
-	s.auth.SetRefreshCookie(w, result.RefreshToken)
+	secure := requestSecure(r)
+	s.auth.SetSessionCookie(w, result.Token, secure)
+	s.auth.SetRefreshCookie(w, result.RefreshToken, secure)
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": result.Token, "user": result.User})
 }
 
@@ -167,10 +169,10 @@ func (s *Server) handleVerifyMFA(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		}
 		return
 	}
-	s.writeLoginResult(w, result)
+	s.writeLoginResult(w, r, result)
 }
 
-func (s *Server) writeLoginResult(w stdhttp.ResponseWriter, result *auth.LoginResult) {
+func (s *Server) writeLoginResult(w stdhttp.ResponseWriter, r *stdhttp.Request, result *auth.LoginResult) {
 	if result == nil {
 		writeError(w, stdhttp.StatusUnauthorized, "unauthorized", "login failed")
 		return
@@ -184,8 +186,9 @@ func (s *Server) writeLoginResult(w stdhttp.ResponseWriter, result *auth.LoginRe
 		})
 		return
 	}
-	s.auth.SetSessionCookie(w, result.Token)
-	s.auth.SetRefreshCookie(w, result.RefreshToken)
+	secure := requestSecure(r)
+	s.auth.SetSessionCookie(w, result.Token, secure)
+	s.auth.SetRefreshCookie(w, result.RefreshToken, secure)
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": result.Token, "user": result.User})
 }
 
@@ -196,7 +199,8 @@ func (s *Server) handleLogoutSession(w stdhttp.ResponseWriter, r *stdhttp.Reques
 			_ = s.auth.RevokeSession(r.Context(), claims.UserID, claims.SessionID)
 		}
 	}
-	s.auth.ClearSessionCookie(w)
-	s.auth.ClearRefreshCookie(w)
+	secure := requestSecure(r)
+	s.auth.ClearSessionCookie(w, secure)
+	s.auth.ClearRefreshCookie(w, secure)
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"ok": true})
 }

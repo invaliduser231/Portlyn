@@ -66,19 +66,19 @@ func bearerTokenFromHeader(header string) string {
 	return strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 }
 
-func (s *Service) SetSessionCookie(w http.ResponseWriter, token string) {
+func (s *Service) SetSessionCookie(w http.ResponseWriter, token string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   !s.allowInsecureDevMode,
+		Secure:   secure,
 		MaxAge:   int(s.tokenTTL.Seconds()),
 	})
 }
 
-func (s *Service) SetRefreshCookie(w http.ResponseWriter, token string) {
+func (s *Service) SetRefreshCookie(w http.ResponseWriter, token string, secure bool) {
 	if strings.TrimSpace(token) == "" {
 		return
 	}
@@ -88,7 +88,7 @@ func (s *Service) SetRefreshCookie(w http.ResponseWriter, token string) {
 		Path:     "/api/v1/auth",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   !s.allowInsecureDevMode,
+		Secure:   secure,
 		MaxAge:   int(s.refreshTokenTTL.Seconds()),
 	})
 }
@@ -120,26 +120,26 @@ func (s *Service) SetSessionCookieForHost(w http.ResponseWriter, token, host str
 	http.SetCookie(w, cookie)
 }
 
-func (s *Service) ClearSessionCookie(w http.ResponseWriter) {
+func (s *Service) ClearSessionCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   !s.allowInsecureDevMode,
+		Secure:   secure,
 		MaxAge:   -1,
 	})
 }
 
-func (s *Service) ClearRefreshCookie(w http.ResponseWriter) {
+func (s *Service) ClearRefreshCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     RefreshCookieName,
 		Value:    "",
 		Path:     "/api/v1/auth",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   !s.allowInsecureDevMode,
+		Secure:   secure,
 		MaxAge:   -1,
 	})
 }

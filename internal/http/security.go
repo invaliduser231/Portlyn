@@ -17,6 +17,13 @@ import (
 	"portlyn/internal/auth"
 )
 
+func requestSecure(r *http.Request) bool {
+	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
+		return strings.EqualFold(proto, "https")
+	}
+	return r.TLS != nil
+}
+
 func (s *Server) securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -66,7 +73,7 @@ func (s *Server) ensureCSRFCookie(w http.ResponseWriter, r *http.Request) string
 		Path:     "/",
 		HttpOnly: false,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   !s.cfg.AllowInsecureDevMode,
+		Secure:   requestSecure(r),
 		MaxAge:   int(s.cfg.CSRFTokenTTL.Seconds()),
 	})
 	return token
