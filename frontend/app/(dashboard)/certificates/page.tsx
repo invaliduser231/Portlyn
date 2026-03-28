@@ -32,6 +32,7 @@ export default function CertificatesPage() {
   const [opened, { open, close }] = useDisclosure(false);
   const { user } = useAuth();
   const canManage = user?.role === "admin";
+  const certificateSans: NonNullable<Certificate["sans"]> = inspectedCertificate?.sans || [];
 
   const filteredCertificates = useMemo(
     () =>
@@ -231,9 +232,9 @@ export default function CertificatesPage() {
             </Group>
             <Stack gap={4}>
               <Text size="xs" tt="uppercase" c="dimmed">SANs</Text>
-              {inspectedCertificate.sans.length > 0 ? (
+              {certificateSans.length > 0 ? (
                 <Group gap="xs">
-                  {inspectedCertificate.sans.map((item) => (
+                  {certificateSans.map((item) => (
                     <Badge key={item.domain_name} variant="light" color="gray">{item.domain_name}</Badge>
                   ))}
                 </Group>

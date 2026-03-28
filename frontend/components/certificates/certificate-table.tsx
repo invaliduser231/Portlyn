@@ -48,7 +48,9 @@ export function CertificateTable({
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {certificates.map((certificate) => (
+          {certificates.map((certificate) => {
+            const sans = certificate.sans || [];
+            return (
             <Table.Tr key={certificate.id} onClick={() => onInspect?.(certificate)} style={{ cursor: onInspect ? "pointer" : undefined }}>
               <Table.Td>
                 <Stack gap={2}>
@@ -57,10 +59,10 @@ export function CertificateTable({
                 </Stack>
               </Table.Td>
               <Table.Td>
-                {certificate.sans.length > 0 ? (
+                {sans.length > 0 ? (
                   <Stack gap={4}>
-                    <Badge size="sm" variant="light" color="gray">{certificate.sans.length} SANs</Badge>
-                    <Text size="xs" c="dimmed">{certificate.sans.slice(0, 3).map((item) => item.domain_name).join(", ")}{certificate.sans.length > 3 ? " ..." : ""}</Text>
+                    <Badge size="sm" variant="light" color="gray">{sans.length} SANs</Badge>
+                    <Text size="xs" c="dimmed">{sans.slice(0, 3).map((item) => item.domain_name).join(", ")}{sans.length > 3 ? " ..." : ""}</Text>
                   </Stack>
                 ) : "0"}
               </Table.Td>
@@ -101,7 +103,8 @@ export function CertificateTable({
                 </Table.Td>
               ) : null}
             </Table.Tr>
-          ))}
+            );
+          })}
         </Table.Tbody>
       </Table>
     </Table.ScrollContainer>
