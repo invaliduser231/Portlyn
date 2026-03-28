@@ -13,6 +13,7 @@ import (
 
 	"github.com/caddyserver/certmagic"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"portlyn/internal/domain"
 )
@@ -212,10 +213,14 @@ func (s *CertMagicStorage) tryAcquire(ctx context.Context, name string) (bool, e
 			Owner:     owner,
 			ExpiresAt: now.Add(s.lockTTL),
 		}
-		if err := tx.Create(&lock).Error; err != nil {
-			return nil
+		result := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "name"}},
+			DoNothing: true,
+		}).Create(&lock)
+		if result.Error != nil {
+			return result.Error
 		}
-		acquired = true
+		acquired = result.RowsAffected > 0
 		return nil
 	})
 	if err != nil {
