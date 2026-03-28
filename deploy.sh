@@ -83,9 +83,9 @@ prompt_value() {
   fi
 
   if [ -n "$default_value" ]; then
-    printf '%s [%s]: ' "$label" "$default_value"
+    printf '%s [%s]: ' "$label" "$default_value" >&2
   else
-    printf '%s: ' "$label"
+    printf '%s: ' "$label" >&2
   fi
 
   read -r input_value || true
@@ -107,11 +107,11 @@ prompt_secret() {
     generated_default="$current_value"
   fi
 
-  printf '%s' "$label"
+  printf '%s' "$label" >&2
   if [ -n "$generated_default" ]; then
-    printf ' [press enter to keep current/generated value]'
+    printf ' [press enter to keep current/generated value]' >&2
   fi
-  printf ': '
+  printf ': ' >&2
 
   stty_state="$(stty -g 2>/dev/null || true)"
   if [ -n "$stty_state" ]; then
@@ -121,7 +121,7 @@ prompt_secret() {
   if [ -n "$stty_state" ]; then
     stty "$stty_state" 2>/dev/null || true
   fi
-  printf '\n'
+  printf '\n' >&2
 
   input_value="$(trim "$input_value")"
   if [ -z "$input_value" ]; then
@@ -143,9 +143,9 @@ prompt_yes_no() {
 
   while true; do
     if [ "$default_value" = "true" ]; then
-      printf '%s [Y/n]: ' "$label"
+      printf '%s [Y/n]: ' "$label" >&2
     else
-      printf '%s [y/N]: ' "$label"
+      printf '%s [y/N]: ' "$label" >&2
     fi
 
     read -r input_value || true
@@ -162,7 +162,7 @@ prompt_yes_no() {
       n|no|false) printf 'false'; return 0 ;;
     esac
 
-    echo "Please answer yes or no."
+    echo "Please answer yes or no." >&2
   done
 }
 
