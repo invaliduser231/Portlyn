@@ -11,6 +11,9 @@ on:
 jobs:
   backend-vulns:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v5
 
@@ -22,8 +25,23 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - name: Run govulncheck
-        run: $(go env GOPATH)/bin/govulncheck ./...
+      - name: Run govulncheck (SARIF)
+        run: |
+          GOVULNCHECK="$(go env GOPATH)/bin/govulncheck"
+          "$GOVULNCHECK" -format sarif ./... > govulncheck.sarif
+
+      - name: Upload govulncheck SARIF
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: govulncheck.sarif
+          category: govulncheck
+
+      - name: Enforce govulncheck on main/schedule
+        if: github.event_name != 'pull_request'
+        run: |
+          GOVULNCHECK="$(go env GOPATH)/bin/govulncheck"
+          "$GOVULNCHECK" ./...
 
   frontend-audit:
     runs-on: ubuntu-latest

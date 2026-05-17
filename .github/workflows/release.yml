@@ -28,7 +28,7 @@ jobs:
       - name: Create checksums
         run: |
           cd dist
-          sha256sum * > checksums.txt
+          sha256sum -- * > checksums.txt
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.6.0
