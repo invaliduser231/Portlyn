@@ -29,6 +29,8 @@ type createNodeRequest struct {
 	LastSeenAt  *time.Time `json:"last_seen_at"`
 	Version     string     `json:"version" validate:"max=64"`
 	Status      string     `json:"status" validate:"required,max=64"`
+	AuthMode    string     `json:"heartbeat_auth_mode" validate:"omitempty,oneof=token mtls"`
+	MTLSSHA256  string     `json:"mtls_cert_sha256" validate:"omitempty,len=64,hexadecimal"`
 }
 
 type updateNodeRequest struct {
@@ -37,6 +39,8 @@ type updateNodeRequest struct {
 	LastSeenAt  *time.Time `json:"last_seen_at"`
 	Version     *string    `json:"version" validate:"omitempty,max=64"`
 	Status      *string    `json:"status" validate:"omitempty,max=64"`
+	AuthMode    *string    `json:"heartbeat_auth_mode" validate:"omitempty,oneof=token mtls"`
+	MTLSSHA256  *string    `json:"mtls_cert_sha256" validate:"omitempty,len=64,hexadecimal"`
 }
 
 type heartbeatNodeRequest struct {
@@ -95,16 +99,22 @@ type updateCertificateRequest struct {
 
 type createDNSProviderRequest struct {
 	Name   string            `json:"name" validate:"required,min=2,max=255"`
-	Type   string            `json:"type" validate:"required,oneof=cloudflare hetzner"`
+	Type   string            `json:"type" validate:"required,oneof=cloudflare hetzner route53 digitalocean"`
 	Config map[string]string `json:"config"`
 	Active *bool             `json:"is_active"`
 }
 
 type updateDNSProviderRequest struct {
 	Name   *string           `json:"name" validate:"omitempty,min=2,max=255"`
-	Type   *string           `json:"type" validate:"omitempty,oneof=cloudflare hetzner"`
+	Type   *string           `json:"type" validate:"omitempty,oneof=cloudflare hetzner route53 digitalocean"`
 	Config map[string]string `json:"config"`
 	Active *bool             `json:"is_active"`
+}
+
+type importCertificatePEMRequest struct {
+	CertificatePEM string `json:"certificate_pem" validate:"required"`
+	PrivateKeyPEM  string `json:"private_key_pem" validate:"required"`
+	IssuerKey      string `json:"issuer_key" validate:"omitempty,max=255"`
 }
 
 type accessWindowRequest struct {

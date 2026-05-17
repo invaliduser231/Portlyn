@@ -189,9 +189,59 @@ func (m *Manager) SyncCertificate(ctx context.Context, item *domain.Certificate)
 	return item, nil
 }
 
+func (m *Manager) ImportPEMCertificate(ctx context.Context, item *domain.Certificate, certPEM, keyPEM, issuerKey string) (*domain.Certificate, error) {
+	if item == nil {
+		return nil, fmt.Errorf("certificate is required")
+	}
+	names := certificateNames(item)
+	if len(names) == 0 {
+		return nil, fmt.Errorf("certificate has no domain names")
+	}
+	issuer := strings.TrimSpace(issuerKey)
+	if issuer == "" {
+		issuer = "manual_import"
+	}
+	certBytes := []byte(strings.TrimSpace(certPEM))
+	keyBytes := []byte(strings.TrimSpace(keyPEM))
+	if len(certBytes) == 0 || len(keyBytes) == 0 {
+		return nil, fmt.Errorf("certificate_pem and private_key_pem are required")
+	}
+	for _, name := range names {
+		if err := m.tlsStore.StorePEM(ctx, normalizeDomain(name), issuer, certBytes, keyBytes, nil); err != nil {
+			return nil, err
+		}
+	}
+	pair, err := tls.X509KeyPair(certBytes, keyBytes)
+	if err != nil {
+		return nil, err
+	}
+	if len(pair.Certificate) == 0 {
+		return nil, fmt.Errorf("certificate chain is empty")
+	}
+	leaf, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	item.IssuedAt = &now
+	item.LastCheckedAt = &now
+	item.ExpiresAt = leaf.NotAfter.UTC()
+	if item.RenewalWindowDays == 0 {
+		item.RenewalWindowDays = 30
+	}
+	item.NextRenewalAt = renewalTime(item.ExpiresAt, item.RenewalWindowDays)
+	item.LastError = ""
+	item.Status = derivedCertificateStatus(item, now)
+	if err := m.certificates.Update(ctx, item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
 func (m *Manager) TLSConfig() *tls.Config {
 	return &tls.Config{
 		MinVersion:     tls.VersionTLS12,
+		ClientAuth:     tls.RequestClientCert,
 		GetCertificate: m.GetCertificate,
 		NextProtos:     []string{"h2", "http/1.1"},
 	}

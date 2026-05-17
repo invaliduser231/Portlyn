@@ -68,6 +68,8 @@ const (
 const (
 	DNSProviderTypeCloudflare = "cloudflare"
 	DNSProviderTypeHetzner    = "hetzner"
+	DNSProviderTypeRoute53    = "route53"
+	DNSProviderTypeDO         = "digitalocean"
 )
 
 const (
@@ -250,6 +252,7 @@ type Node struct {
 	BandwidthInKbps    float64    `gorm:"not null;default:0" json:"bandwidth_in_kbps"`
 	BandwidthOutKbps   float64    `gorm:"not null;default:0" json:"bandwidth_out_kbps"`
 	HeartbeatTokenHash string     `gorm:"size:128" json:"-"`
+	MTLSCertSHA256     string     `gorm:"size:128" json:"mtls_cert_sha256"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -421,6 +424,8 @@ type AuditLog struct {
 	RemoteAddr   string    `gorm:"size:255" json:"remote_addr"`
 	UserAgent    string    `gorm:"size:512" json:"user_agent"`
 	Details      string    `gorm:"type:text" json:"details"`
+	PrevHash     string    `gorm:"size:128;index" json:"prev_hash"`
+	Hash         string    `gorm:"size:128;index" json:"hash"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 

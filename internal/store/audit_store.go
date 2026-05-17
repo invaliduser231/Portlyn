@@ -2,6 +2,10 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -33,14 +37,33 @@ func NewAuditStore(db *gorm.DB) *AuditStore {
 }
 
 func (s *AuditStore) Create(ctx context.Context, item *domain.AuditLog) error {
-	return s.db.WithContext(ctx).Create(item).Error
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		prevHash, err := latestAuditHash(tx.WithContext(ctx))
+		if err != nil {
+			return err
+		}
+		item.PrevHash = prevHash
+		item.Hash = computeAuditHash(prevHash, item)
+		return tx.WithContext(ctx).Create(item).Error
+	})
 }
 
 func (s *AuditStore) CreateBatch(ctx context.Context, items []domain.AuditLog) error {
 	if len(items) == 0 {
 		return nil
 	}
-	return s.db.WithContext(ctx).Create(&items).Error
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		prevHash, err := latestAuditHash(tx.WithContext(ctx))
+		if err != nil {
+			return err
+		}
+		for i := range items {
+			items[i].PrevHash = prevHash
+			items[i].Hash = computeAuditHash(prevHash, &items[i])
+			prevHash = items[i].Hash
+		}
+		return tx.WithContext(ctx).Create(&items).Error
+	})
 }
 
 func (s *AuditStore) List(ctx context.Context, params AuditListParams) ([]domain.AuditLog, int64, error) {
@@ -99,4 +122,51 @@ func (s *AuditStore) CountByActionLikeSince(ctx context.Context, actionLike stri
 		Where("action LIKE ? AND timestamp >= ?", actionLike, since).
 		Count(&count).Error
 	return count, err
+}
+
+func latestAuditHash(db *gorm.DB) (string, error) {
+	var latest domain.AuditLog
+	if err := db.Order("id desc").Limit(1).Find(&latest).Error; err != nil {
+		return "", err
+	}
+	return latest.Hash, nil
+}
+
+func computeAuditHash(prevHash string, item *domain.AuditLog) string {
+	payload := map[string]any{
+		"prev_hash":     prevHash,
+		"timestamp":     item.Timestamp.UTC().Format(time.RFC3339Nano),
+		"request_id":    item.RequestID,
+		"user_id":       item.UserID,
+		"action":        item.Action,
+		"resource_type": item.ResourceType,
+		"resource_id":   item.ResourceID,
+		"method":        item.Method,
+		"host":          item.Host,
+		"path":          item.Path,
+		"status_code":   item.StatusCode,
+		"latency_ms":    item.LatencyMs,
+		"remote_addr":   item.RemoteAddr,
+		"user_agent":    item.UserAgent,
+		"details":       item.Details,
+	}
+	encoded, _ := json.Marshal(payload)
+	sum := sha256.Sum256(encoded)
+	return hex.EncodeToString(sum[:])
+}
+
+func VerifyAuditHashChain(items []domain.AuditLog) error {
+	prevHash := ""
+	for i := range items {
+		item := &items[i]
+		if item.PrevHash != prevHash {
+			return fmt.Errorf("audit chain mismatch at id %d", item.ID)
+		}
+		expected := computeAuditHash(prevHash, item)
+		if item.Hash != expected {
+			return fmt.Errorf("audit hash mismatch at id %d", item.ID)
+		}
+		prevHash = item.Hash
+	}
+	return nil
 }

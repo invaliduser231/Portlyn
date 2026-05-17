@@ -48,6 +48,24 @@ func (s *Server) handleSyncCertificateStatus(w stdhttp.ResponseWriter, r *stdhtt
 	writeJSON(w, stdhttp.StatusOK, item)
 }
 
+func (s *Server) handleImportCertificatePEM(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	item, ok := s.loadCertificate(w, r)
+	if !ok {
+		return
+	}
+	var req importCertificatePEMRequest
+	if !s.decodeAndValidate(w, r, &req) {
+		return
+	}
+	updated, err := s.acme.ImportPEMCertificate(r.Context(), item, req.CertificatePEM, req.PrivateKeyPEM, req.IssuerKey)
+	if err != nil {
+		writeError(w, stdhttp.StatusBadRequest, "invalid_certificate", err.Error())
+		return
+	}
+	_ = s.audit.LogRequest(r.Context(), r, s.currentUserID(r), "import_pem", "certificate", &item.ID, map[string]any{"certificate_id": item.ID})
+	writeJSON(w, stdhttp.StatusOK, updated)
+}
+
 func ptrTime(value time.Time) *time.Time {
 	return &value
 }

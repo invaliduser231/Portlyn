@@ -49,6 +49,14 @@ func (s *Server) handleCreateNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 		Status:            req.Status,
 		HeartbeatAuthMode: "token",
 	}
+	if strings.EqualFold(strings.TrimSpace(req.AuthMode), "mtls") {
+		item.HeartbeatAuthMode = "mtls"
+		item.MTLSCertSHA256 = strings.ToLower(strings.TrimSpace(req.MTLSSHA256))
+	}
+	if item.HeartbeatAuthMode == "mtls" && item.MTLSCertSHA256 == "" {
+		writeError(w, stdhttp.StatusBadRequest, "validation_error", "mtls_cert_sha256 is required when heartbeat_auth_mode is mtls")
+		return
+	}
 	if err := s.nodes.Create(r.Context(), item); err != nil {
 		s.internalError(w, err)
 		return
@@ -90,6 +98,16 @@ func (s *Server) handleUpdateNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 	}
 	if req.Status != nil {
 		item.Status = *req.Status
+	}
+	if req.AuthMode != nil {
+		item.HeartbeatAuthMode = strings.ToLower(strings.TrimSpace(*req.AuthMode))
+	}
+	if req.MTLSSHA256 != nil {
+		item.MTLSCertSHA256 = strings.ToLower(strings.TrimSpace(*req.MTLSSHA256))
+	}
+	if item.HeartbeatAuthMode == "mtls" && item.MTLSCertSHA256 == "" {
+		writeError(w, stdhttp.StatusBadRequest, "validation_error", "mtls_cert_sha256 is required when heartbeat_auth_mode is mtls")
+		return
 	}
 
 	if err := s.nodes.Update(r.Context(), item); err != nil {
@@ -185,6 +203,9 @@ func (s *Server) handleHeartbeatNode(w stdhttp.ResponseWriter, r *stdhttp.Reques
 }
 
 func (s *Server) authorizeNodeHeartbeat(r *stdhttp.Request, node *domain.Node) bool {
+	if strings.EqualFold(strings.TrimSpace(node.HeartbeatAuthMode), "mtls") {
+		return verifyNodeMTLS(r, node.MTLSCertSHA256)
+	}
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(authHeader, "Bearer ") {
 		token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
@@ -198,6 +219,20 @@ func (s *Server) authorizeNodeHeartbeat(r *stdhttp.Request, node *domain.Node) b
 func hashOpaqueToken(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
+}
+
+func verifyNodeMTLS(r *stdhttp.Request, expectedFingerprint string) bool {
+	expected := strings.ToLower(strings.TrimSpace(expectedFingerprint))
+	if expected == "" {
+		return false
+	}
+	if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+		cert := r.TLS.PeerCertificates[0]
+		sum := sha256.Sum256(cert.Raw)
+		return expected == hex.EncodeToString(sum[:])
+	}
+	forwarded := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Portlyn-Client-Cert-SHA256")))
+	return forwarded != "" && forwarded == expected
 }
 
 func (s *Server) handleListDomains(w stdhttp.ResponseWriter, r *stdhttp.Request) {

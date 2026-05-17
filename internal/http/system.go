@@ -223,8 +223,8 @@ func (s *Server) handleSystemOverview(w http.ResponseWriter, r *http.Request) {
 			CookieSameSiteRefresh:      "Strict",
 			RequireMFAForAdmins:        settings.RequireMFAForAdmins,
 			AdminsWithoutMFA:           adminsWithoutMFA,
-			NodeHeartbeatAuthMode:      "token",
-			NodeMTLSEnabled:            false,
+			NodeHeartbeatAuthMode:      summarizeNodeHeartbeatAuthMode(nodes),
+			NodeMTLSEnabled:            hasMTLSNodes(nodes),
 			SecurityHeadersEnabled:     true,
 			SMTPEnabled:                settings.SMTPEnabled,
 			SMTPConfigured:             strings.TrimSpace(settings.SMTPHost) != "" && settings.SMTPPort > 0 && strings.TrimSpace(settings.SMTPFromEmail) != "",
@@ -368,4 +368,33 @@ func countAdminsWithoutMFA(users []domain.User) int {
 		}
 	}
 	return total
+}
+
+func summarizeNodeHeartbeatAuthMode(nodes []domain.Node) string {
+	hasToken := false
+	hasMTLS := false
+	for _, node := range nodes {
+		switch strings.ToLower(strings.TrimSpace(node.HeartbeatAuthMode)) {
+		case "mtls":
+			hasMTLS = true
+		default:
+			hasToken = true
+		}
+	}
+	if hasToken && hasMTLS {
+		return "mixed"
+	}
+	if hasMTLS {
+		return "mtls"
+	}
+	return "token"
+}
+
+func hasMTLSNodes(nodes []domain.Node) bool {
+	for _, node := range nodes {
+		if strings.EqualFold(strings.TrimSpace(node.HeartbeatAuthMode), "mtls") {
+			return true
+		}
+	}
+	return false
 }

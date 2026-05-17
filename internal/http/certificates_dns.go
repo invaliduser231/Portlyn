@@ -185,6 +185,10 @@ func providerConfigHint(providerType string) string {
 		return "Requires api_token with Zone DNS edit permission."
 	case domain.DNSProviderTypeHetzner:
 		return "Requires dns_api_token for the target zone."
+	case domain.DNSProviderTypeRoute53:
+		return "Supports AWS env-chain auth or explicit keys. For explicit credentials use access_key_id, secret_access_key, optional session_token, and optional region/hosted_zone_id/profile."
+	case domain.DNSProviderTypeDO:
+		return "Requires api_token for DigitalOcean DNS."
 	default:
 		return ""
 	}
@@ -196,6 +200,10 @@ func requiredProviderKeys(providerType string) []string {
 		return []string{"api_token"}
 	case domain.DNSProviderTypeHetzner:
 		return []string{"dns_api_token"}
+	case domain.DNSProviderTypeRoute53:
+		return nil
+	case domain.DNSProviderTypeDO:
+		return []string{"api_token"}
 	default:
 		return nil
 	}

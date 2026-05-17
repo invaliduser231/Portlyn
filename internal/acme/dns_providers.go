@@ -11,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	libdnsdo "github.com/libdns/digitalocean"
 	"github.com/libdns/libdns"
+	libdnsroute53 "github.com/libdns/route53"
 
 	"portlyn/internal/domain"
 	"portlyn/internal/secureconfig"
@@ -31,6 +33,21 @@ func buildDNSProvider(secret string, item *domain.DNSProvider) (libdns.RecordApp
 		return provider, provider, nil
 	case domain.DNSProviderTypeHetzner:
 		provider := &hetznerProvider{apiToken: strings.TrimSpace(config["dns_api_token"]), client: &http.Client{Timeout: 15 * time.Second}}
+		return provider, provider, nil
+	case domain.DNSProviderTypeRoute53:
+		provider := &libdnsroute53.Provider{
+			Region:          strings.TrimSpace(config["region"]),
+			Profile:         strings.TrimSpace(config["profile"]),
+			AccessKeyId:     strings.TrimSpace(config["access_key_id"]),
+			SecretAccessKey: strings.TrimSpace(config["secret_access_key"]),
+			SessionToken:    strings.TrimSpace(config["session_token"]),
+			HostedZoneID:    strings.TrimSpace(config["hosted_zone_id"]),
+		}
+		return provider, provider, nil
+	case domain.DNSProviderTypeDO:
+		provider := &libdnsdo.Provider{
+			APIToken: strings.TrimSpace(config["api_token"]),
+		}
 		return provider, provider, nil
 	default:
 		return nil, nil, fmt.Errorf("unsupported dns provider type %q", item.Type)

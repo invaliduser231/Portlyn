@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net"
@@ -357,14 +359,27 @@ func (m *Manager) Handler() http.Handler {
 			r.Header.Set("X-Portlyn-User-Role", user.Role)
 			r.Header.Set("X-Portlyn-User-ID", fmt.Sprintf("%d", user.ID))
 		}
-		if degraded, reason := m.isTargetDegraded(route.TargetURL); degraded {
+		if fingerprint := clientCertSHA256(r); fingerprint != "" {
+			r.Header.Set("X-Portlyn-Client-Cert-SHA256", fingerprint)
+		} else {
+			r.Header.Del("X-Portlyn-Client-Cert-SHA256")
+		}
+		if degraded, degradedReason := m.isTargetDegraded(route.TargetURL); degraded {
 			outcome = "degraded"
-			reason = reason
+			reason = degradedReason
 			writeProxyError(writer, http.StatusServiceUnavailable, "target_degraded", "target temporarily degraded after repeated upstream failures")
 			return
 		}
 		route.ReverseProxyHandler.ServeHTTP(writer, r)
 	})
+}
+
+func clientCertSHA256(r *http.Request) string {
+	if r == nil || r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(r.TLS.PeerCertificates[0].Raw)
+	return hex.EncodeToString(sum[:])
 }
 
 func (m *Manager) matchRoute(ctx context.Context, host, path string) (Route, bool) {

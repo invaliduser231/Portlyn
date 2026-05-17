@@ -1,26 +1,18 @@
 # Licensing
 
-Portlyn is distributed under the Business Source License 1.1 in [LICENSE](LICENSE).
+The binding license text is in [LICENSE](LICENSE) (Business Source License 1.1).
 
-## Practical Summary
+## In short
 
-- Source code is visible in this repository.
-- Non-production use is allowed under the BSL terms.
-- Personal, non-commercial self-hosted production use by an individual is allowed under the Additional Use Grant.
-- Production use by companies, teams, commercial services, MSPs, SaaS offerings, or embedded products requires a separate commercial license.
+- You can read, run, and modify the source.
+- Non-production use is allowed under BSL 1.1.
+- Personal, non-commercial self-hosting by an individual is allowed by the Additional Use Grant.
+- Commercial or organizational production use needs a separate commercial license.
 
-## Why this model
+## Commercial use
 
-This repository is public for transparency, evaluation, and community feedback, while preserving the
-ability to offer paid commercial licenses later.
+If your use case is outside the Additional Use Grant, contact the licensor for terms.
 
-## Commercial licensing
+## Licensor
 
-If you want to use Portlyn in production outside the scope of the Additional Use Grant, contact the
-Licensor for commercial terms.
-
-## Maintainer note
-
-Before public release, replace the placeholder licensor identity in [LICENSE](LICENSE) with your
-legal name or company name.
-
+Licensor in [LICENSE](LICENSE): `Rainer Schnittert`.

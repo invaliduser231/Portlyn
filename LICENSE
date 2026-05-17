@@ -5,7 +5,7 @@ License text copyright © 2017 MariaDB Corporation Ab, All Rights Reserved.
 
 Parameters
 
-Licensor: The Portlyn copyright holders
+Licensor: Rainer Schnittert
 
 Licensed Work: Portlyn, including the source code, bundled frontend, build scripts, deployment files,
 documentation, and official assets distributed in this repository.
@@ -76,4 +76,3 @@ text "None".
 3. To specify a Change Date.
 
 4. Not to modify this License in any other way.
-

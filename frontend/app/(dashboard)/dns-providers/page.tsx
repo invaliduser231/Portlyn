@@ -19,6 +19,13 @@ const defaultPayload: DNSProviderPayload = {
   is_active: true
 };
 
+const providerRequiredFields: Record<DNSProviderPayload["type"], string[]> = {
+  cloudflare: ["api_token"],
+  hetzner: ["dns_api_token"],
+  route53: [],
+  digitalocean: ["api_token"]
+};
+
 export default function DNSProvidersPage() {
   const [items, setItems] = useState<DNSProvider[]>([]);
   const [selected, setSelected] = useState<DNSProvider | null>(null);
@@ -30,7 +37,8 @@ export default function DNSProvidersPage() {
   const [opened, { open, close }] = useDisclosure(false);
   const [form, setForm] = useState<DNSProviderPayload>(defaultPayload);
 
-  const requiredField = form.type === "cloudflare" ? "api_token" : "dns_api_token";
+  const requiredFields = providerRequiredFields[form.type];
+  const missingRequiredField = requiredFields.find((field) => !form.config[field]);
 
   const load = async () => {
     setIsLoading(true);
@@ -173,19 +181,28 @@ export default function DNSProvidersPage() {
             label="Provider type"
             data={[
               { value: "cloudflare", label: "Cloudflare" },
-              { value: "hetzner", label: "Hetzner DNS" }
+              { value: "hetzner", label: "Hetzner DNS" },
+              { value: "route53", label: "AWS Route53" },
+              { value: "digitalocean", label: "DigitalOcean DNS" }
             ]}
             value={form.type}
             onChange={(value) => setForm({ ...form, type: (value || "cloudflare") as DNSProviderPayload["type"], config: {} })}
           />
-          <TextInput
-            label={requiredField}
-            placeholder={selected?.has_stored_secret ? "Leave empty to keep current secret" : "Required"}
-            value={form.config[requiredField] || ""}
-            onChange={(event) => setForm({ ...form, config: { ...form.config, [requiredField]: event.currentTarget.value } })}
-          />
+          {requiredFields.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              This provider can use environment/IAM credentials. Optional explicit fields: access_key_id, secret_access_key, session_token, region, hosted_zone_id, profile.
+            </Text>
+          ) : requiredFields.map((field) => (
+            <TextInput
+              key={field}
+              label={field}
+              placeholder={selected?.has_stored_secret ? "Leave empty to keep current secret" : "Required"}
+              value={form.config[field] || ""}
+              onChange={(event) => setForm({ ...form, config: { ...form.config, [field]: event.currentTarget.value } })}
+            />
+          ))}
           <Checkbox checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })} label="Provider active" />
-          <Button onClick={() => void handleSubmit()} loading={isSaving} disabled={!form.name || (!selected && !form.config[requiredField])}>
+          <Button onClick={() => void handleSubmit()} loading={isSaving} disabled={!form.name || (!selected && Boolean(missingRequiredField))}>
             {selected ? "Save Changes" : "Create Provider"}
           </Button>
         </Stack>

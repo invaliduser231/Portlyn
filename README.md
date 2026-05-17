@@ -89,6 +89,8 @@ Default endpoints:
 
 - Cloudflare
 - Hetzner DNS
+- AWS Route53
+- DigitalOcean DNS
 
 </details>
 
@@ -248,7 +250,7 @@ DNS provider credentials are encrypted at rest and never returned in clear text 
 - Duplicate or invalid SANs are rejected
 - `dns-01` requires an active DNS provider resource
 - Let's Encrypt staging is available for safe dry-runs
-- Manual PEM / KEY import is not part of the current implementation
+- Manual PEM / KEY import is supported through `POST /api/v1/certificates/{id}/import-pem`
 - DNS provider testing validates stored configuration and provider readiness, not a full end-to-end ACME dry-run
 
 </details>
@@ -284,7 +286,7 @@ Portlyn includes baseline hardening for browser and proxy traffic.
 <summary><strong>Current security boundaries</strong></summary>
 
 - Node heartbeat auth currently uses dedicated tokens
-- mTLS for node heartbeats is not implemented yet
+- Node heartbeats can run in `mtls` mode by pinning a client certificate SHA-256 fingerprint per node
 - MFA is currently TOTP-first
 - WebAuthn / passkeys are not implemented yet
 
@@ -367,10 +369,24 @@ Run backend tests:
 go test ./...
 ```
 
+Run backend vet:
+
+```bash
+go vet ./...
+```
+
 Build backend packages:
 
 ```bash
 go build ./...
+```
+
+Run the frontend build check from `frontend/`:
+
+```bash
+npm ci
+npm test
+npm run build
 ```
 
 Current test coverage in the repository includes:
@@ -378,6 +394,9 @@ Current test coverage in the repository includes:
 - OTP login flow
 - Proxy pass-through and upstream-down degradation
 - Static TLS certificate loading and certificate metadata sync
+- OIDC helper validation and role-claim extraction
+- Node enrollment and heartbeat token lifecycle
+- Access-policy checks for viewer access and restricted role/group matching
 
 ## Project Docs
 
@@ -385,6 +404,12 @@ Current test coverage in the repository includes:
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Production Hardening Guide](docs/PRODUCTION-HARDENING.md)
+- [Release Process](docs/RELEASE.md)
+- [Backup and Restore Guide](docs/BACKUP-RESTORE.md)
+- [HA Deployment Guide](docs/HA-DEPLOYMENT.md)
+- [OpenAPI Spec](docs/openapi.yaml)
+- [Changelog](CHANGELOG.md)
 
 ## Repository Layout
 

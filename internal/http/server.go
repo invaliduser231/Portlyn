@@ -243,6 +243,7 @@ func (s *Server) Router() stdhttp.Handler {
 				r.Post("/certificates/{id}/retry", s.handleRetryCertificate)
 				r.Post("/certificates/{id}/renew", s.handleRenewCertificate)
 				r.Post("/certificates/{id}/sync-status", s.handleSyncCertificateStatus)
+				r.Post("/certificates/{id}/import-pem", s.handleImportCertificatePEM)
 				r.Post("/dns-providers", s.handleCreateDNSProvider)
 				r.Patch("/dns-providers/{id}", s.handleUpdateDNSProvider)
 				r.Delete("/dns-providers/{id}", s.handleDeleteDNSProvider)

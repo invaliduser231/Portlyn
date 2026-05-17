@@ -108,6 +108,8 @@ services:
     labels:
       logging: "alloy"
       service: "frontend"
+    ports:
+      - "3000:3000"
 
   loki:
     image: grafana/loki:3.6.3

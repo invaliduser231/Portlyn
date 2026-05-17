@@ -5,6 +5,7 @@ export type AccessMethod = "session" | "oidc_only" | "pin" | "email_code" | "";
 export type TLSMode = "offload" | "passthrough" | "none";
 export type NodeStatus = "unknown" | "online" | "offline";
 export type AuthProvider = "local" | "oidc";
+export type DNSProviderType = "cloudflare" | "hetzner" | "route53" | "digitalocean";
 
 export interface ApiErrorPayload {
   error?: {
@@ -105,7 +106,7 @@ export interface Certificate {
 export interface DNSProvider {
   id: number;
   name: string;
-  type: "cloudflare" | "hetzner";
+  type: DNSProviderType;
   config_hint: string;
   is_active: boolean;
   last_tested_at: string | null;
@@ -126,6 +127,7 @@ export interface Node {
   heartbeat_auth_mode: string;
   heartbeat_endpoint: string;
   heartbeat_version: string;
+  mtls_cert_sha256: string;
   last_heartbeat_ip: string;
   last_heartbeat_code: number;
   last_heartbeat_error: string;
@@ -529,7 +531,7 @@ export interface CertificatePayload {
 
 export interface DNSProviderPayload {
   name: string;
-  type: "cloudflare" | "hetzner";
+  type: DNSProviderType;
   config: Record<string, string>;
   is_active: boolean;
 }

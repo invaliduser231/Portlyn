@@ -1,0 +1,68 @@
+name: Container Security
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: "0 5 * * 3"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t portlyn-backend:scan .
+
+      - name: Build frontend image
+        run: docker build -t portlyn-frontend:scan ./frontend
+
+      - name: Generate backend SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: portlyn-backend:scan
+          artifact-name: sbom-backend.spdx.json
+          format: spdx-json
+
+      - name: Generate frontend SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: portlyn-frontend:scan
+          artifact-name: sbom-frontend.spdx.json
+          format: spdx-json
+
+      - name: Run Trivy for backend image
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: portlyn-backend:scan
+          format: sarif
+          output: trivy-backend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Run Trivy for frontend image
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: portlyn-frontend:scan
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Upload backend Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend.sarif
+          category: trivy-backend
+
+      - name: Upload frontend Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
