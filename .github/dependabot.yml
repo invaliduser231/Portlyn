@@ -14,3 +14,7 @@ updates:
     directory: "/frontend"
     schedule:
       interval: weekly
+    groups:
+      mantine:
+        patterns:
+          - "@mantine/*"
