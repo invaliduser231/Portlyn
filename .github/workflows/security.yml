@@ -30,11 +30,21 @@ jobs:
           GOVULNCHECK="$(go env GOPATH)/bin/govulncheck"
           "$GOVULNCHECK" -format sarif ./... > govulncheck.sarif
 
+      - name: Normalize SARIF for GitHub upload
+        run: |
+          if command -v jq >/dev/null 2>&1; then
+            jq '(.runs[]?.tool.driver.rules[]?.properties.tags) |= (if type=="array" then unique else . end)' \
+              govulncheck.sarif > govulncheck.normalized.sarif
+          else
+            cp govulncheck.sarif govulncheck.normalized.sarif
+          fi
+
       - name: Upload govulncheck SARIF
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: govulncheck.sarif
+          sarif_file: govulncheck.normalized.sarif
           category: govulncheck
 
       - name: Enforce govulncheck on main/schedule
