@@ -16,7 +16,7 @@ require (
 	github.com/libdns/route53 v1.6.2
 	github.com/redis/go-redis/v9 v9.18.0
 	golang.org/x/crypto v0.50.0
-	golang.org/x/oauth2 v0.31.0
+	golang.org/x/oauth2 v0.36.0
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.25.12
 )
