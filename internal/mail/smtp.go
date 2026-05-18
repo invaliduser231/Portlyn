@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	stdmail "net/mail"
 	"net/smtp"
 	"strings"
 	"time"
@@ -133,7 +134,7 @@ func buildMessage(cfg SMTPConfig, to []string, subject, textBody, htmlBody strin
 	messageID := buildMessageID(cfg.FromEmail)
 	headers := []string{
 		fmt.Sprintf("From: %s", from),
-		fmt.Sprintf("To: %s", strings.Join(sanitizeAddressList(to), ", ")),
+		"To: undisclosed-recipients:;",
 		fmt.Sprintf("Subject: %s", sanitizeHeaderValue(subject)),
 		fmt.Sprintf("Date: %s", dateHeader),
 		fmt.Sprintf("Message-ID: %s", messageID),
@@ -172,7 +173,15 @@ func buildMessageID(fromEmail string) string {
 }
 
 func sanitizeAddress(value string) string {
-	return sanitizeHeaderValue(value)
+	normalized := sanitizeHeaderValue(value)
+	if normalized == "" {
+		return ""
+	}
+	parsed, err := stdmail.ParseAddress(normalized)
+	if err != nil || parsed == nil {
+		return ""
+	}
+	return strings.TrimSpace(parsed.Address)
 }
 
 func sanitizeAddressList(values []string) []string {

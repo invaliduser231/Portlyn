@@ -491,8 +491,7 @@ func (m *Manager) handleSessionBridge(w http.ResponseWriter, r *http.Request) bo
 		return true
 	}
 	m.auth.SetSessionCookieForHost(w, claims.AccessToken, normalizeHost(r.Host), forwardedProto(r) == "https")
-	target := safeLocalRedirectPath(r.URL.Query().Get("returnTo"))
-	http.Redirect(w, r, target, http.StatusFound)
+	http.Redirect(w, r, "/", http.StatusFound)
 	return true
 }
 
@@ -1087,26 +1086,6 @@ func forwardedProto(r *http.Request) string {
 
 func requestURL(r *http.Request) string {
 	return forwardedProto(r) + "://" + r.Host + r.URL.RequestURI()
-}
-
-func safeLocalRedirectPath(raw string) string {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return "/"
-	}
-	normalized := strings.ReplaceAll(value, "\\", "/")
-	parsed, err := url.Parse(normalized)
-	if err != nil {
-		return "/"
-	}
-	if parsed.Scheme != "" || parsed.Host != "" || parsed.User != nil {
-		return "/"
-	}
-	target := parsed.RequestURI()
-	if target == "" || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") {
-		return "/"
-	}
-	return target
 }
 
 func expectsTokenAuth(r *http.Request) bool {
