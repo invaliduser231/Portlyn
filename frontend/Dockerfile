@@ -1,4 +1,8 @@
-FROM node:22-alpine AS deps
+FROM node:22-alpine AS base
+
+RUN npm install -g npm@11.14.1
+
+FROM base AS deps
 
 WORKDIR /app
 
@@ -8,9 +12,9 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV INTERNAL_API_BASE_URL=$INTERNAL_API_BASE_URL
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
-FROM node:22-alpine AS builder
+FROM base AS builder
 
 WORKDIR /app
 
@@ -35,6 +39,8 @@ ENV PORT=3000
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV INTERNAL_API_BASE_URL=$INTERNAL_API_BASE_URL
 
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/node_modules ./node_modules
@@ -44,4 +50,4 @@ COPY --from=builder /app/next.config.mjs ./next.config.mjs
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+CMD ["node", "node_modules/next/dist/bin/next", "start"]

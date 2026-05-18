@@ -872,13 +872,13 @@ func (s *Server) handleListAuditLogs(w stdhttp.ResponseWriter, r *stdhttp.Reques
 		Host:         strings.TrimSpace(r.URL.Query().Get("host")),
 	}
 	if rawUserID := r.URL.Query().Get("user_id"); rawUserID != "" {
-		if parsed, err := strconv.ParseUint(rawUserID, 10, 64); err == nil {
+		if parsed, err := strconv.ParseUint(strings.TrimSpace(rawUserID), 10, strconv.IntSize); err == nil {
 			value := uint(parsed)
 			params.UserID = &value
 		}
 	}
 	if rawResourceID := r.URL.Query().Get("resource_id"); rawResourceID != "" {
-		if parsed, err := strconv.ParseUint(rawResourceID, 10, 64); err == nil {
+		if parsed, err := strconv.ParseUint(strings.TrimSpace(rawResourceID), 10, strconv.IntSize); err == nil {
 			value := uint(parsed)
 			params.ResourceID = &value
 		}

@@ -94,12 +94,19 @@ func writeMessage(client *smtp.Client, cfg SMTPConfig, to []string, subject, tex
 		}
 	}
 
-	from := strings.TrimSpace(cfg.FromEmail)
+	from := sanitizeAddress(cfg.FromEmail)
+	if from == "" {
+		return fmt.Errorf("smtp from address is empty")
+	}
 	if err := client.Mail(from); err != nil {
 		return err
 	}
 	for _, recipient := range to {
-		if err := client.Rcpt(strings.TrimSpace(recipient)); err != nil {
+		normalizedRecipient := sanitizeAddress(recipient)
+		if normalizedRecipient == "" {
+			return fmt.Errorf("smtp recipient is empty")
+		}
+		if err := client.Rcpt(normalizedRecipient); err != nil {
 			return err
 		}
 	}
@@ -118,16 +125,16 @@ func writeMessage(client *smtp.Client, cfg SMTPConfig, to []string, subject, tex
 }
 
 func buildMessage(cfg SMTPConfig, to []string, subject, textBody, htmlBody string) string {
-	from := cfg.FromEmail
+	from := sanitizeAddress(cfg.FromEmail)
 	if strings.TrimSpace(cfg.FromName) != "" {
-		from = fmt.Sprintf("%s <%s>", cfg.FromName, cfg.FromEmail)
+		from = fmt.Sprintf("%s <%s>", sanitizeHeaderValue(cfg.FromName), from)
 	}
 	dateHeader := time.Now().UTC().Format(time.RFC1123Z)
 	messageID := buildMessageID(cfg.FromEmail)
 	headers := []string{
 		fmt.Sprintf("From: %s", from),
-		fmt.Sprintf("To: %s", strings.Join(to, ", ")),
-		fmt.Sprintf("Subject: %s", subject),
+		fmt.Sprintf("To: %s", strings.Join(sanitizeAddressList(to), ", ")),
+		fmt.Sprintf("Subject: %s", sanitizeHeaderValue(subject)),
 		fmt.Sprintf("Date: %s", dateHeader),
 		fmt.Sprintf("Message-ID: %s", messageID),
 		"MIME-Version: 1.0",
@@ -158,10 +165,31 @@ func buildMessage(cfg SMTPConfig, to []string, subject, textBody, htmlBody strin
 
 func buildMessageID(fromEmail string) string {
 	domain := "localhost"
-	if parts := strings.Split(strings.TrimSpace(fromEmail), "@"); len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
+	if parts := strings.Split(sanitizeAddress(fromEmail), "@"); len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
 		domain = strings.TrimSpace(parts[1])
 	}
 	return fmt.Sprintf("<%d.%s@%s>", time.Now().UnixNano(), strings.ReplaceAll(domain, " ", ""), domain)
+}
+
+func sanitizeAddress(value string) string {
+	return sanitizeHeaderValue(value)
+}
+
+func sanitizeAddressList(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if sanitized := sanitizeAddress(value); sanitized != "" {
+			out = append(out, sanitized)
+		}
+	}
+	return out
+}
+
+func sanitizeHeaderValue(value string) string {
+	trimmed := strings.TrimSpace(value)
+	trimmed = strings.ReplaceAll(trimmed, "\r", " ")
+	trimmed = strings.ReplaceAll(trimmed, "\n", " ")
+	return strings.TrimSpace(trimmed)
 }
 
 func ResolveHostPort(host string, port int) string {

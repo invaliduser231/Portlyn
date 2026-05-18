@@ -41,7 +41,7 @@ func (s *SQLRoutingStore) ListRoutes(ctx context.Context, filter routing.RouteFi
 		query = query.Where(`LOWER("Domain"."name") IN ?`, domainCandidatesForHost(filter.Host))
 	}
 	if filter.ServiceID != "" {
-		if parsed, err := strconv.ParseUint(filter.ServiceID, 10, 64); err == nil {
+		if parsed, err := strconv.ParseUint(strings.TrimSpace(filter.ServiceID), 10, strconv.IntSize); err == nil {
 			query = query.Where("services.id = ?", uint(parsed))
 		}
 	}
@@ -63,7 +63,7 @@ func (s *SQLRoutingStore) ListRoutes(ctx context.Context, filter routing.RouteFi
 }
 
 func (s *SQLRoutingStore) GetRouteByID(ctx context.Context, id string) (*routing.RouteConfig, error) {
-	parsedID, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64)
+	parsedID, err := strconv.ParseUint(strings.TrimSpace(id), 10, strconv.IntSize)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -106,7 +106,7 @@ func (s *SQLRoutingStore) UpsertRoute(ctx context.Context, route routing.RouteCo
 		service.ID = route.ServiceID
 	}
 	if service.ID == 0 && route.ID != "" {
-		parsedID, err := strconv.ParseUint(route.ID, 10, 64)
+		parsedID, err := strconv.ParseUint(strings.TrimSpace(route.ID), 10, strconv.IntSize)
 		if err == nil {
 			service.ID = uint(parsedID)
 		}
@@ -118,7 +118,7 @@ func (s *SQLRoutingStore) UpsertRoute(ctx context.Context, route routing.RouteCo
 }
 
 func (s *SQLRoutingStore) DeleteRoute(ctx context.Context, id string) error {
-	parsedID, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64)
+	parsedID, err := strconv.ParseUint(strings.TrimSpace(id), 10, strconv.IntSize)
 	if err != nil {
 		return ErrNotFound
 	}

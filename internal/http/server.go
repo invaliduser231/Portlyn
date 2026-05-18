@@ -317,7 +317,7 @@ func (s *Server) decodeAndValidate(w stdhttp.ResponseWriter, r *stdhttp.Request,
 
 func (s *Server) parseIDParam(w stdhttp.ResponseWriter, r *stdhttp.Request, key string) (uint, bool) {
 	rawID := chi.URLParam(r, key)
-	id, err := strconv.ParseUint(rawID, 10, 64)
+	id, err := strconv.ParseUint(strings.TrimSpace(rawID), 10, strconv.IntSize)
 	if err != nil {
 		writeErrorRequest(w, r, stdhttp.StatusBadRequest, "invalid_id", "resource id must be a positive integer")
 		return 0, false

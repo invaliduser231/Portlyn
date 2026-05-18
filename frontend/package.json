@@ -29,5 +29,8 @@
     "jsdom": "^29.1.1",
     "typescript": "^5.8.2",
     "vitest": "^4.1.6"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }
