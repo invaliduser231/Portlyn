@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	stdhttp "net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ func (s *Server) handleCreateNodeEnrollmentToken(w stdhttp.ResponseWriter, r *st
 		return
 	}
 	_ = s.audit.LogRequest(r.Context(), r, s.currentUserID(r), "create", "node_enrollment_token", &item.ID, map[string]any{"name": item.Name})
+	setupAPIBase := s.nodeAgentAPIBaseHint()
 	writeJSON(w, stdhttp.StatusCreated, map[string]any{
 		"id":            item.ID,
 		"name":          item.Name,
@@ -61,7 +63,7 @@ func (s *Server) handleCreateNodeEnrollmentToken(w stdhttp.ResponseWriter, r *st
 		"expires_at":    item.ExpiresAt,
 		"created_at":    item.CreatedAt,
 		"token":         plainToken,
-		"setup_command": "nodeagent --token " + plainToken + " --name <node-name> --api http://localhost:8080",
+		"setup_command": "nodeagent --token " + plainToken + " --name <node-name> --api " + setupAPIBase,
 	})
 }
 
@@ -79,6 +81,13 @@ func (s *Server) handleDeleteNodeEnrollmentToken(w stdhttp.ResponseWriter, r *st
 }
 
 func (s *Server) handleEnrollNode(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if !s.requireNodeSecureTransport(w, r) {
+		return
+	}
+	if !s.enforceNodeRateLimit(w, r, "node_enroll", s.cfg.NodeEnrollRateLimit, s.cfg.NodeEnrollRateWindow) {
+		return
+	}
+
 	var req enrollNodeRequest
 	if !s.decodeAndValidate(w, r, &req) {
 		return
@@ -103,7 +112,7 @@ func (s *Server) handleEnrollNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 		Status:             domain.NodeStatusOnline,
 		LastSeenAt:         &now,
 		LastHeartbeatAt:    &now,
-		LastHeartbeatIP:    clientIPForLog(r),
+		LastHeartbeatIP:    s.clientIPForRequest(r),
 		LastHeartbeatCode:  stdhttp.StatusCreated,
 		HeartbeatVersion:   strings.TrimSpace(req.Version),
 		HeartbeatTokenHash: hashOpaqueToken(heartbeatToken),
@@ -140,4 +149,28 @@ func randomEnrollmentToken() (string, error) {
 		return "", err
 	}
 	return strings.ToUpper(hex.EncodeToString(buf)), nil
+}
+
+func (s *Server) nodeAgentAPIBaseHint() string {
+	base := strings.TrimSpace(s.cfg.FrontendBaseURL)
+	if base == "" {
+		if s.cfg.AllowInsecureDevMode {
+			return "http://localhost:8080"
+		}
+		return "https://localhost"
+	}
+	parsed, err := url.Parse(base)
+	if err != nil || parsed.Host == "" {
+		if s.cfg.AllowInsecureDevMode {
+			return "http://localhost:8080"
+		}
+		return "https://localhost"
+	}
+	if s.cfg.AllowInsecureDevMode {
+		if parsed.Scheme == "" {
+			parsed.Scheme = "http"
+		}
+		return parsed.Scheme + "://" + parsed.Host
+	}
+	return "https://" + parsed.Host
 }

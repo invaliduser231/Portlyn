@@ -390,7 +390,7 @@ func (m *Manager) configForCertificate(ctx context.Context, item *domain.Certifi
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		appender, deleter, err := buildDNSProvider(m.cfg.JWTSecret, provider)
+		appender, deleter, err := buildDNSProvider(m.cfg.DataEncryptionSecrets(), provider)
 		if err != nil {
 			return nil, nil, nil, err
 		}

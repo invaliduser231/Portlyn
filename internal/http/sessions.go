@@ -37,7 +37,7 @@ func (s *Server) handleRevokeMySession(w stdhttp.ResponseWriter, r *stdhttp.Requ
 	}
 	token := s.auth.SessionTokenFromRequest(r)
 	if claims, err := s.auth.ParseToken(token); err == nil && claims.SessionID == sessionID {
-		secure := requestSecure(r)
+		secure := s.requestSecure(r)
 		s.auth.ClearSessionCookie(w, secure)
 		s.auth.ClearRefreshCookie(w, secure)
 	}
@@ -55,7 +55,7 @@ func (s *Server) handleRevokeAllMySessions(w stdhttp.ResponseWriter, r *stdhttp.
 		s.internalError(w, err)
 		return
 	}
-	secure := requestSecure(r)
+	secure := s.requestSecure(r)
 	s.auth.ClearSessionCookie(w, secure)
 	s.auth.ClearRefreshCookie(w, secure)
 	_ = s.audit.LogRequest(r.Context(), r, &user.ID, "session_revoke_all", "session", nil, map[string]any{"user_id": user.ID})

@@ -34,6 +34,24 @@ func DecryptJSON(secret []byte, value string) (map[string]string, error) {
 	return out, nil
 }
 
+func DecryptJSONWithSecrets(secrets [][]byte, value string) (map[string]string, error) {
+	var lastErr error
+	for _, secret := range secrets {
+		if len(secret) == 0 {
+			continue
+		}
+		out, err := DecryptJSON(secret, value)
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("no secrets available for decryption")
+}
+
 func EncryptString(secret []byte, value string) (string, error) {
 	block, err := aes.NewCipher(deriveSecretKey(secret))
 	if err != nil {
@@ -73,6 +91,24 @@ func DecryptString(secret []byte, value string) (string, error) {
 		return "", err
 	}
 	return string(plaintext), nil
+}
+
+func DecryptStringWithSecrets(secrets [][]byte, value string) (string, error) {
+	var lastErr error
+	for _, secret := range secrets {
+		if len(secret) == 0 {
+			continue
+		}
+		out, err := DecryptString(secret, value)
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return "", lastErr
+	}
+	return "", fmt.Errorf("no secrets available for decryption")
 }
 
 func MaskConfig(config map[string]string) map[string]any {

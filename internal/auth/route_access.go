@@ -196,7 +196,10 @@ func (s *Service) RouteAccessCookieClaims(r *http.Request, serviceID uint) (*Rou
 		return nil, err
 	}
 	token, err := jwt.ParseWithClaims(cookie.Value, &RouteAccessClaims{}, func(token *jwt.Token) (any, error) {
-		return s.jwtSecret, nil
+		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+			return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+		}
+		return s.jwtSigningSecret, nil
 	})
 	if err != nil {
 		return nil, err
@@ -221,7 +224,7 @@ func (s *Service) SetRouteAccessCookie(w http.ResponseWriter, serviceID uint, me
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.routeAuthTTL)),
 		},
 	})
-	signed, err := token.SignedString(s.jwtSecret)
+	signed, err := token.SignedString(s.jwtSigningSecret)
 	if err != nil {
 		return err
 	}
@@ -246,6 +249,9 @@ func (s *Service) SessionTokenFromRequest(r *http.Request) string {
 
 func (s *Service) RequestRouteEmailCode(ctx context.Context, serviceID uint, email string, meta RequestMetadata, includeCode bool) (*RouteEmailCodeResult, error) {
 	otpCfg := s.currentOTPConfig(ctx)
+	if !otpCfg.Enabled {
+		return nil, ErrOTPDisabled
+	}
 	email = strings.ToLower(strings.TrimSpace(email))
 	now := time.Now().UTC()
 	if s.isRateLimited(ctx, "route-email:"+strconv.FormatUint(uint64(serviceID), 10)+":"+email, now) {
@@ -335,12 +341,15 @@ func (s *Service) IssueSessionBridgeToken(accessToken, host string) (string, err
 			ExpiresAt: jwt.NewNumericDate(now.Add(2 * time.Minute)),
 		},
 	})
-	return token.SignedString(s.jwtSecret)
+	return token.SignedString(s.sessionBridgeSecret)
 }
 
 func (s *Service) ParseSessionBridgeToken(tokenString string) (*SessionBridgeClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &SessionBridgeClaims{}, func(token *jwt.Token) (any, error) {
-		return s.jwtSecret, nil
+		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+			return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+		}
+		return s.sessionBridgeSecret, nil
 	})
 	if err != nil {
 		return nil, err

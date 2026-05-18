@@ -163,6 +163,9 @@ func (a *OIDCAuthenticator) signState(next, nonce string) (string, error) {
 
 func (a *OIDCAuthenticator) parseState(state string) (*oidcStateClaims, error) {
 	parsed, err := jwt.ParseWithClaims(state, &oidcStateClaims{}, func(token *jwt.Token) (any, error) {
+		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+			return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+		}
 		return a.stateSecret, nil
 	})
 	if err != nil {

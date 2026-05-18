@@ -146,6 +146,12 @@ cp .env.docker.example .env.docker
 Then set at least:
 
 - `JWT_SECRET`
+- `JWT_SIGNING_SECRET`
+- `SESSION_BRIDGE_SECRET`
+- `OIDC_STATE_SECRET`
+- `MFA_ENCRYPTION_SECRET`
+- `CSRF_SECRET`
+- `DATA_ENCRYPTION_SECRET`
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
 - `POSTGRES_PASSWORD`
@@ -210,7 +216,7 @@ DATABASE_URL=
 - Keep `ALLOW_INSECURE_DEV_MODE=false`
 - Keep `OTP_RESPONSE_INCLUDES_CODE=false`
 - Set `REQUIRE_MFA_FOR_ADMINS=true` after every admin has enrolled TOTP MFA
-- Use strong secrets for JWT, PostgreSQL, and Grafana
+- Use strong, distinct secrets for JWT signing, session bridge, OIDC state, MFA encryption, CSRF, data encryption, PostgreSQL, and Grafana
 - Set `ACME_ENABLED=true` and `ACME_EMAIL=...` for public HTTPS on the shared admin/proxy entrypoint
 - Set `REDIRECT_HTTP_TO_HTTPS=true` when TLS is active
 - Point `FRONTEND_BASE_URL` and `CORS_ALLOWED_ORIGINS` to the real external URL
@@ -408,6 +414,8 @@ Current test coverage in the repository includes:
 - [Release Process](docs/RELEASE.md)
 - [Backup and Restore Guide](docs/BACKUP-RESTORE.md)
 - [HA Deployment Guide](docs/HA-DEPLOYMENT.md)
+- [Secret Rotation Guide](docs/SECRET-ROTATION.md)
+- [Recovery Break-glass Guide](docs/RECOVERY-BREAKGLASS.md)
 - [OpenAPI Spec](docs/openapi.yaml)
 - [Changelog](CHANGELOG.md)
 

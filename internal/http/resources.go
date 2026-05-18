@@ -132,13 +132,17 @@ func (s *Server) handleDeleteNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 }
 
 func (s *Server) handleHeartbeatNode(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if !s.requireNodeSecureTransport(w, r) {
+		return
+	}
+
 	node, ok := s.loadNode(w, r)
 	if !ok {
 		return
 	}
 	if !s.authorizeNodeHeartbeat(r, node) {
 		now := time.Now().UTC()
-		node.LastHeartbeatIP = clientIPForLog(r)
+		node.LastHeartbeatIP = s.clientIPForRequest(r)
 		node.LastHeartbeatCode = stdhttp.StatusUnauthorized
 		node.LastHeartbeatError = "invalid_token"
 		node.HeartbeatFailedAt = &now
@@ -148,11 +152,14 @@ func (s *Server) handleHeartbeatNode(w stdhttp.ResponseWriter, r *stdhttp.Reques
 		_ = s.nodes.UpdateHeartbeat(r.Context(), node)
 		_ = s.audit.LogRequest(r.Context(), r, nil, "node_heartbeat_rejected", "node", &node.ID, map[string]any{
 			"node_id":      node.ID,
-			"remote_addr":  clientIPForLog(r),
+			"remote_addr":  s.clientIPForRequest(r),
 			"status_code":  stdhttp.StatusUnauthorized,
 			"auth_mode":    node.HeartbeatAuthMode,
 			"node_version": node.Version,
 		})
+		if !s.enforceNodeRateLimit(w, r, "node_heartbeat_auth_fail", s.cfg.NodeHeartbeatAuthFailRateLimit, s.cfg.NodeHeartbeatAuthFailRateWindow) {
+			return
+		}
 		writeError(w, stdhttp.StatusUnauthorized, "unauthorized", "missing or invalid node token")
 		return
 	}
@@ -166,7 +173,7 @@ func (s *Server) handleHeartbeatNode(w stdhttp.ResponseWriter, r *stdhttp.Reques
 	node.LastHeartbeatAt = &now
 	node.LastSeenAt = &now
 	node.Status = domain.NodeStatusOnline
-	node.LastHeartbeatIP = clientIPForLog(r)
+	node.LastHeartbeatIP = s.clientIPForRequest(r)
 	node.LastHeartbeatCode = stdhttp.StatusOK
 	node.LastHeartbeatError = ""
 	node.HeartbeatFailedAt = nil
@@ -204,7 +211,7 @@ func (s *Server) handleHeartbeatNode(w stdhttp.ResponseWriter, r *stdhttp.Reques
 
 func (s *Server) authorizeNodeHeartbeat(r *stdhttp.Request, node *domain.Node) bool {
 	if strings.EqualFold(strings.TrimSpace(node.HeartbeatAuthMode), "mtls") {
-		return verifyNodeMTLS(r, node.MTLSCertSHA256)
+		return verifyNodeMTLS(r, node.MTLSCertSHA256, s.cfg.NodeAllowMTLSHeaderFallback && s.cfg.NodeTrustForwardedProto)
 	}
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(authHeader, "Bearer ") {
@@ -221,7 +228,7 @@ func hashOpaqueToken(value string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func verifyNodeMTLS(r *stdhttp.Request, expectedFingerprint string) bool {
+func verifyNodeMTLS(r *stdhttp.Request, expectedFingerprint string, allowHeaderFallback bool) bool {
 	expected := strings.ToLower(strings.TrimSpace(expectedFingerprint))
 	if expected == "" {
 		return false
@@ -230,6 +237,9 @@ func verifyNodeMTLS(r *stdhttp.Request, expectedFingerprint string) bool {
 		cert := r.TLS.PeerCertificates[0]
 		sum := sha256.Sum256(cert.Raw)
 		return expected == hex.EncodeToString(sum[:])
+	}
+	if !allowHeaderFallback {
+		return false
 	}
 	forwarded := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Portlyn-Client-Cert-SHA256")))
 	return forwarded != "" && forwarded == expected
@@ -352,7 +362,7 @@ func (s *Server) handleListCertificates(w stdhttp.ResponseWriter, r *stdhttp.Req
 		return
 	}
 	for i := range items {
-		items[i].DNSProvider = sanitizeDNSProvider(s.cfg.JWTSecret, items[i].DNSProvider)
+		items[i].DNSProvider = sanitizeDNSProvider(s.dataSecrets(), items[i].DNSProvider)
 	}
 	writeJSON(w, stdhttp.StatusOK, items)
 }
@@ -406,7 +416,7 @@ func (s *Server) handleCreateCertificate(w stdhttp.ResponseWriter, r *stdhttp.Re
 	}
 	item, _ = s.certificates.GetByID(r.Context(), item.ID)
 	if item != nil {
-		item.DNSProvider = sanitizeDNSProvider(s.cfg.JWTSecret, item.DNSProvider)
+		item.DNSProvider = sanitizeDNSProvider(s.dataSecrets(), item.DNSProvider)
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "create", "certificate", &item.ID, item)
 	writeJSON(w, stdhttp.StatusCreated, item)
@@ -417,7 +427,7 @@ func (s *Server) handleGetCertificate(w stdhttp.ResponseWriter, r *stdhttp.Reque
 	if !ok {
 		return
 	}
-	item.DNSProvider = sanitizeDNSProvider(s.cfg.JWTSecret, item.DNSProvider)
+	item.DNSProvider = sanitizeDNSProvider(s.dataSecrets(), item.DNSProvider)
 	writeJSON(w, stdhttp.StatusOK, item)
 }
 
@@ -487,7 +497,7 @@ func (s *Server) handleUpdateCertificate(w stdhttp.ResponseWriter, r *stdhttp.Re
 	}
 	item, _ = s.certificates.GetByID(r.Context(), item.ID)
 	if item != nil {
-		item.DNSProvider = sanitizeDNSProvider(s.cfg.JWTSecret, item.DNSProvider)
+		item.DNSProvider = sanitizeDNSProvider(s.dataSecrets(), item.DNSProvider)
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "update", "certificate", &item.ID, item)
 	writeJSON(w, stdhttp.StatusOK, item)

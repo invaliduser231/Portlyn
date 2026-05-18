@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,5 +126,84 @@ func TestNodeHeartbeatRejectsInvalidToken(t *testing.T) {
 	}
 	if reloaded.LastHeartbeatCode != http.StatusUnauthorized {
 		t.Fatalf("expected last heartbeat code 401, got %d", reloaded.LastHeartbeatCode)
+	}
+}
+
+func TestNodeEnrollmentRejectsInsecureTransportWhenHardened(t *testing.T) {
+	server, cleanup := newIntegrationServer(t)
+	defer cleanup()
+
+	server.cfg.AllowInsecureDevMode = false
+	server.cfg.NodeRequireHTTPS = true
+	server.cfg.NodeTrustForwardedProto = false
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/nodes/enroll", bytes.NewBufferString(`{"token":"x","name":"edge-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUpgradeRequired {
+		t.Fatalf("expected enroll to require https and return 426, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNodeHeartbeatMTLSHeaderFallbackDisabledByDefault(t *testing.T) {
+	server, cleanup := newIntegrationServer(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	node := &domain.Node{
+		Name:              "edge-mtls-no-fallback",
+		Status:            domain.NodeStatusOnline,
+		LastSeenAt:        &now,
+		LastHeartbeatAt:   &now,
+		HeartbeatAuthMode: "mtls",
+		MTLSCertSHA256:    strings.Repeat("a", 64),
+	}
+	if err := server.nodes.Create(context.Background(), node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/nodes/"+strconv.FormatUint(uint64(node.ID), 10)+"/heartbeat", bytes.NewBufferString(`{"status":"online"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Portlyn-Client-Cert-SHA256", strings.Repeat("a", 64))
+	rec := httptest.NewRecorder()
+	server.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected heartbeat rejection 401 without tls cert and fallback disabled, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNodeHeartbeatMTLSHeaderFallbackRequiresTrustedForwardedProto(t *testing.T) {
+	server, cleanup := newIntegrationServer(t)
+	defer cleanup()
+
+	server.cfg.NodeAllowMTLSHeaderFallback = true
+	server.cfg.NodeTrustForwardedProto = true
+	server.cfg.NodeRequireHTTPS = true
+	server.cfg.AllowInsecureDevMode = false
+	server.cfg.TrustedProxyCIDRs = []string{"10.0.0.0/8"}
+
+	now := time.Now().UTC()
+	node := &domain.Node{
+		Name:              "edge-mtls-header",
+		Status:            domain.NodeStatusOnline,
+		LastSeenAt:        &now,
+		LastHeartbeatAt:   &now,
+		HeartbeatAuthMode: "mtls",
+		MTLSCertSHA256:    strings.Repeat("b", 64),
+	}
+	if err := server.nodes.Create(context.Background(), node); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/nodes/"+strconv.FormatUint(uint64(node.ID), 10)+"/heartbeat", bytes.NewBufferString(`{"status":"online"}`))
+	req.RemoteAddr = "10.1.2.3:12345"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("X-Portlyn-Client-Cert-SHA256", strings.Repeat("b", 64))
+	rec := httptest.NewRecorder()
+	server.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected heartbeat 200 when trusted proxy fallback is explicitly enabled, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

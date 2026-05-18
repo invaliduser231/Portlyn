@@ -83,6 +83,9 @@ func (s *Server) handleRoutePIN(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		writeError(w, stdhttp.StatusConflict, "pin_not_configured", "route pin is not configured")
 		return
 	}
+	if !s.enforceNodeRateLimit(w, r, fmt.Sprintf("route_pin:%d", service.ID), s.cfg.AuthRateLimit.LoginAttempts, s.cfg.AuthRateLimit.Window) {
+		return
+	}
 	if err := auth.CheckPassword(pinHash, req.PIN); err != nil {
 		_ = s.audit.LogRequest(r.Context(), r, nil, "route_pin_failed", "service", &service.ID, map[string]any{"service_id": service.ID})
 		writeError(w, stdhttp.StatusUnauthorized, "invalid_pin", "invalid route pin")
@@ -124,6 +127,10 @@ func (s *Server) handleRouteRequestEmailCode(w stdhttp.ResponseWriter, r *stdhtt
 			writeError(w, stdhttp.StatusTooManyRequests, "rate_limited", "too many code requests")
 			return
 		}
+		if errors.Is(err, auth.ErrOTPDisabled) {
+			writeError(w, stdhttp.StatusNotFound, "otp_disabled", "email code login is disabled")
+			return
+		}
 		if errors.Is(err, auth.ErrSMTPNotConfigured) {
 			writeError(w, stdhttp.StatusConflict, "smtp_not_configured", "smtp is not configured for email delivery")
 			return
@@ -160,6 +167,9 @@ func (s *Server) handleRouteVerifyEmailCode(w stdhttp.ResponseWriter, r *stdhttp
 	if err := validateRouteEmailDomain(req.Email, config); err != nil {
 		_ = s.audit.LogRequest(r.Context(), r, nil, "route_email_code_verify_failed", "service", &service.ID, map[string]any{"service_id": service.ID, "email": req.Email, "reason": err.Error()})
 		writeError(w, stdhttp.StatusForbidden, "email_domain_not_allowed", "email domain is not allowed for this route")
+		return
+	}
+	if !s.enforceNodeRateLimit(w, r, fmt.Sprintf("route_email_verify:%d", service.ID), s.cfg.AuthRateLimit.LoginAttempts, s.cfg.AuthRateLimit.Window) {
 		return
 	}
 	if err := s.auth.VerifyRouteEmailCode(r.Context(), service.ID, req.Email, req.Code); err != nil {

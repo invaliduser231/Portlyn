@@ -60,7 +60,7 @@ func (s *Server) validateAndHydrateCertificate(ctx context.Context, item *domain
 		if !provider.IsActive {
 			return fmt.Errorf("selected DNS provider is not active")
 		}
-		item.DNSProvider = sanitizeDNSProvider(s.cfg.JWTSecret, provider)
+		item.DNSProvider = sanitizeDNSProvider(s.dataSecrets(), provider)
 	} else {
 		item.DNSProviderID = nil
 		item.DNSProvider = nil
@@ -155,12 +155,12 @@ func isValidCertificateDNSName(value string) bool {
 	return true
 }
 
-func sanitizeDNSProvider(secret string, item *domain.DNSProvider) *domain.DNSProvider {
+func sanitizeDNSProvider(secrets [][]byte, item *domain.DNSProvider) *domain.DNSProvider {
 	if item == nil {
 		return nil
 	}
 	out := *item
-	config, err := secureconfig.DecryptJSON([]byte(secret), item.ConfigEncrypted)
+	config, err := secureconfig.DecryptJSONWithSecrets(secrets, item.ConfigEncrypted)
 	if err == nil {
 		out.MaskedConfig = domain.JSONObject(secureconfig.MaskConfig(config))
 	}
@@ -168,10 +168,10 @@ func sanitizeDNSProvider(secret string, item *domain.DNSProvider) *domain.DNSPro
 	return &out
 }
 
-func sanitizeDNSProviders(secret string, items []domain.DNSProvider) []domain.DNSProvider {
+func sanitizeDNSProviders(secrets [][]byte, items []domain.DNSProvider) []domain.DNSProvider {
 	out := make([]domain.DNSProvider, 0, len(items))
 	for i := range items {
-		item := sanitizeDNSProvider(secret, &items[i])
+		item := sanitizeDNSProvider(secrets, &items[i])
 		if item != nil {
 			out = append(out, *item)
 		}
@@ -237,7 +237,7 @@ func (s *Server) handleListDNSProviders(w stdhttp.ResponseWriter, r *stdhttp.Req
 		s.internalError(w, err)
 		return
 	}
-	writeJSON(w, stdhttp.StatusOK, sanitizeDNSProviders(s.cfg.JWTSecret, items))
+	writeJSON(w, stdhttp.StatusOK, sanitizeDNSProviders(s.dataSecrets(), items))
 }
 
 func (s *Server) handleGetDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -245,7 +245,7 @@ func (s *Server) handleGetDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Reque
 	if !ok {
 		return
 	}
-	writeJSON(w, stdhttp.StatusOK, sanitizeDNSProvider(s.cfg.JWTSecret, item))
+	writeJSON(w, stdhttp.StatusOK, sanitizeDNSProvider(s.dataSecrets(), item))
 }
 
 func (s *Server) handleCreateDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -258,7 +258,7 @@ func (s *Server) handleCreateDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Re
 		writeError(w, stdhttp.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
-	encrypted, err := secureconfig.EncryptJSON([]byte(s.cfg.JWTSecret), config)
+	encrypted, err := s.dataEncryptJSON(config)
 	if err != nil {
 		s.internalError(w, err)
 		return
@@ -281,7 +281,7 @@ func (s *Server) handleCreateDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Re
 		return
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "create", "dns_provider", &item.ID, map[string]any{"name": item.Name, "type": item.Type})
-	writeJSON(w, stdhttp.StatusCreated, sanitizeDNSProvider(s.cfg.JWTSecret, item))
+	writeJSON(w, stdhttp.StatusCreated, sanitizeDNSProvider(s.dataSecrets(), item))
 }
 
 func (s *Server) handleUpdateDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -309,7 +309,7 @@ func (s *Server) handleUpdateDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Re
 			writeError(w, stdhttp.StatusBadRequest, "validation_error", err.Error())
 			return
 		}
-		encrypted, err := secureconfig.EncryptJSON([]byte(s.cfg.JWTSecret), config)
+		encrypted, err := s.dataEncryptJSON(config)
 		if err != nil {
 			s.internalError(w, err)
 			return
@@ -317,7 +317,7 @@ func (s *Server) handleUpdateDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Re
 		item.ConfigEncrypted = encrypted
 		item.HasStoredSecret = len(config) > 0
 	} else if item.ConfigEncrypted != "" {
-		config, err := secureconfig.DecryptJSON([]byte(s.cfg.JWTSecret), item.ConfigEncrypted)
+		config, err := s.dataDecryptJSON(item.ConfigEncrypted)
 		if err != nil {
 			s.internalError(w, err)
 			return
@@ -332,7 +332,7 @@ func (s *Server) handleUpdateDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Re
 		return
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "update", "dns_provider", &item.ID, map[string]any{"name": item.Name, "type": item.Type})
-	writeJSON(w, stdhttp.StatusOK, sanitizeDNSProvider(s.cfg.JWTSecret, item))
+	writeJSON(w, stdhttp.StatusOK, sanitizeDNSProvider(s.dataSecrets(), item))
 }
 
 func (s *Server) handleDeleteDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -353,7 +353,7 @@ func (s *Server) handleTestDNSProvider(w stdhttp.ResponseWriter, r *stdhttp.Requ
 	if !ok {
 		return
 	}
-	config, err := secureconfig.DecryptJSON([]byte(s.cfg.JWTSecret), item.ConfigEncrypted)
+	config, err := s.dataDecryptJSON(item.ConfigEncrypted)
 	if err != nil {
 		s.internalError(w, err)
 		return

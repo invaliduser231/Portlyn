@@ -17,13 +17,6 @@ import (
 	"portlyn/internal/auth"
 )
 
-func requestSecure(r *http.Request) bool {
-	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
-		return strings.EqualFold(proto, "https")
-	}
-	return r.TLS != nil
-}
-
 func (s *Server) securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -73,7 +66,7 @@ func (s *Server) ensureCSRFCookie(w http.ResponseWriter, r *http.Request) string
 		Path:     "/",
 		HttpOnly: false,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   requestSecure(r),
+		Secure:   s.requestSecure(r),
 		MaxAge:   int(s.cfg.CSRFTokenTTL.Seconds()),
 	})
 	return token
@@ -83,7 +76,7 @@ func (s *Server) newCSRFCookieValue(expiresAt time.Time) string {
 	random := make([]byte, 18)
 	_, _ = rand.Read(random)
 	payload := hex.EncodeToString(random) + "." + strconv.FormatInt(expiresAt.Unix(), 10)
-	mac := hmac.New(sha256.New, []byte(s.cfg.JWTSecret))
+	mac := hmac.New(sha256.New, []byte(s.cfg.CSRFSecret))
 	_, _ = mac.Write([]byte(payload))
 	signature := hex.EncodeToString(mac.Sum(nil))
 	return base64.RawURLEncoding.EncodeToString([]byte(payload + "." + signature))
@@ -103,7 +96,7 @@ func (s *Server) validCSRFCookie(value string) bool {
 		return false
 	}
 	payload := parts[0] + "." + parts[1]
-	mac := hmac.New(sha256.New, []byte(s.cfg.JWTSecret))
+	mac := hmac.New(sha256.New, []byte(s.cfg.CSRFSecret))
 	_, _ = mac.Write([]byte(payload))
 	expected := hex.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(parts[2]), []byte(expected))

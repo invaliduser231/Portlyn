@@ -22,6 +22,7 @@ import (
 	"portlyn/internal/domain"
 	"portlyn/internal/observability"
 	"portlyn/internal/proxy"
+	"portlyn/internal/rate"
 	"portlyn/internal/store"
 )
 
@@ -49,7 +50,9 @@ type Server struct {
 	auditStore       *store.AuditStore
 	sessions         *store.SessionStore
 	enrollmentTokens *store.NodeEnrollmentTokenStore
+	nodeRateLimiter  rate.RateLimiter
 	bootWarnings     []StatusCondition
+	breakGlass       breakGlassState
 }
 
 func NewServer(
@@ -110,14 +113,19 @@ func NewServer(
 		auditStore:       auditStore,
 		sessions:         sessionStore,
 		enrollmentTokens: enrollmentTokenStore,
+		nodeRateLimiter:  rate.NewLocalLimiter(),
 		bootWarnings:     append([]StatusCondition(nil), bootWarnings...),
+		breakGlass: breakGlassState{
+			enabled:   cfg.BreakGlassEnabled,
+			token:     strings.TrimSpace(cfg.BreakGlassToken),
+			expiresAt: time.Now().UTC().Add(cfg.BreakGlassTTL),
+		},
 	}
 }
 
 func (s *Server) ProxyHandler() stdhttp.Handler {
 	handler := s.proxy.Handler()
 	handler = middleware.Recoverer(handler)
-	handler = middleware.RealIP(handler)
 	handler = middleware.RequestID(handler)
 	return handler
 }
@@ -129,7 +137,6 @@ func (s *Server) SyncProxyState(ctx context.Context) error {
 func (s *Server) Router() stdhttp.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(s.traceContextMiddleware)
 	r.Use(s.securityHeadersMiddleware)
@@ -159,6 +166,7 @@ func (s *Server) Router() stdhttp.Handler {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/node-agent/source", s.handleNodeAgentSource)
 		r.Post("/auth/login", s.handleLogin)
+		r.Post("/auth/break-glass/login", s.handleBreakGlassLogin)
 		r.Post("/auth/request-otp", s.handleRequestOTP)
 		r.Post("/auth/verify-otp", s.handleVerifyOTP)
 		r.Post("/auth/verify-mfa", s.handleVerifyMFA)
@@ -206,6 +214,9 @@ func (s *Server) Router() stdhttp.Handler {
 				r.Patch("/settings/auth", s.handleUpdateAuthSettings)
 				r.Post("/settings/auth/test-email", s.handleSendTestEmail)
 				r.Get("/system/overview", s.handleSystemOverview)
+				r.Get("/system/security-alerts", s.handleSecurityAlerts)
+				r.Get("/security/rotation/status", s.handleRotationStatus)
+				r.Post("/security/rotation/data-key/reencrypt", s.handleReencryptDataKey)
 				r.Get("/users", s.handleListUsers)
 				r.Get("/users/{id}", s.handleGetUser)
 				r.Post("/users", s.handleCreateUser)

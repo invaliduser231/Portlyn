@@ -35,7 +35,7 @@ type enrollResponse struct {
 }
 
 func main() {
-	apiBase := flag.String("api", "http://localhost:8080", "api base url")
+	apiBase := flag.String("api", "https://localhost", "api base url")
 	endpoint := flag.String("endpoint", "", "heartbeat endpoint, auto-derived after enrollment if omitted")
 	token := flag.String("token", "", "enrollment token or existing node bearer token")
 	nodeID := flag.Uint("node-id", 0, "existing node id when using a pre-issued heartbeat token")

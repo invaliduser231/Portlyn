@@ -26,7 +26,7 @@ func (s *Server) accessLogMiddleware(channel string) func(http.Handler) http.Han
 			}
 			latency := time.Since(startedAt)
 			requestID := middleware.GetReqID(r.Context())
-			clientIP := clientIPForLog(r)
+			clientIP := s.clientIPForRequest(r)
 			args := []any{
 				"component", "http_api",
 				"kind", channel + "_access",
@@ -78,19 +78,6 @@ func (s *Server) accessLogMiddleware(channel string) func(http.Handler) http.Han
 			})
 		})
 	}
-}
-
-func clientIPForLog(r *http.Request) string {
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
-		parts := strings.Split(forwarded, ",")
-		if len(parts) > 0 {
-			return strings.TrimSpace(parts[0])
-		}
-	}
-	if realIP := strings.TrimSpace(r.Header.Get("X-Real-Ip")); realIP != "" {
-		return realIP
-	}
-	return r.RemoteAddr
 }
 
 func parseAuditTimeQuery(raw string) (*time.Time, bool) {

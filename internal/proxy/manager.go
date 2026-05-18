@@ -41,6 +41,7 @@ type Manager struct {
 	breakersMu            sync.Mutex
 	breakers              map[string]*targetCircuitState
 	adminHost             string
+	trustedProxyCIDRs     []string
 	bootstrapAdminEnabled bool
 	adminUI               http.Handler
 	adminAPI              http.Handler
@@ -92,6 +93,7 @@ type ManagerOptions struct {
 	LocalCacheTTL          time.Duration
 	LocalCacheCapacity     int
 	AdminHost              string
+	TrustedProxyCIDRs      []string
 	BootstrapAdminEnabled  bool
 	AdminUITargetURL       string
 	AdminAPITargetURL      string
@@ -131,14 +133,14 @@ func NewManager(routingStore RoutingStore, cache ConfigCache, bus ConfigBus, aut
 	var adminUIHandler http.Handler
 	if strings.TrimSpace(options.AdminUITargetURL) != "" {
 		if target, err := url.Parse(strings.TrimSpace(options.AdminUITargetURL)); err == nil {
-			adminUIHandler = reverseProxyForTarget(target, transport, "/")
+			adminUIHandler = reverseProxyForTarget(target, transport, "/", directProto)
 		}
 	}
 
 	var adminAPIHandler http.Handler
 	if strings.TrimSpace(options.AdminAPITargetURL) != "" {
 		if target, err := url.Parse(strings.TrimSpace(options.AdminAPITargetURL)); err == nil {
-			adminAPIHandler = reverseProxyForTarget(target, transport, "/")
+			adminAPIHandler = reverseProxyForTarget(target, transport, "/", directProto)
 		}
 	}
 
@@ -155,6 +157,7 @@ func NewManager(routingStore RoutingStore, cache ConfigCache, bus ConfigBus, aut
 		metrics:               metrics,
 		breakers:              make(map[string]*targetCircuitState),
 		adminHost:             normalizeHost(options.AdminHost),
+		trustedProxyCIDRs:     append([]string(nil), options.TrustedProxyCIDRs...),
 		bootstrapAdminEnabled: options.BootstrapAdminEnabled,
 		adminUI:               adminUIHandler,
 		adminAPI:              adminAPIHandler,
@@ -490,7 +493,7 @@ func (m *Manager) handleSessionBridge(w http.ResponseWriter, r *http.Request) bo
 		writeProxyError(w, http.StatusForbidden, "forbidden", "session bridge host mismatch")
 		return true
 	}
-	m.auth.SetSessionCookieForHost(w, claims.AccessToken, normalizeHost(r.Host), forwardedProto(r) == "https")
+	m.auth.SetSessionCookieForHost(w, claims.AccessToken, normalizeHost(r.Host), m.forwardedProto(r) == "https")
 	http.Redirect(w, r, "/", http.StatusFound)
 	return true
 }
@@ -519,7 +522,7 @@ func (m *Manager) routeFromConfig(config RouteConfig) (Route, error) {
 	}
 
 	routePath := normalizePath(config.Path)
-	proxy := reverseProxyForTarget(target, m.transport, routePath)
+	proxy := reverseProxyForTarget(target, m.transport, routePath, m.forwardedProto)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		m.recordTargetFailure(config.TargetURL, err)
 		writeProxyError(w, http.StatusBadGateway, "upstream_unavailable", "upstream target request failed")
@@ -553,7 +556,7 @@ func (m *Manager) routeFromConfig(config RouteConfig) (Route, error) {
 	}, nil
 }
 
-func reverseProxyForTarget(target *url.URL, transport *http.Transport, routePath string) *httputil.ReverseProxy {
+func reverseProxyForTarget(target *url.URL, transport *http.Transport, routePath string, protoForRequest func(*http.Request) string) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = &retryTransport{base: transport, retries: 1, backoff: 100 * time.Millisecond}
 	originalDirector := proxy.Director
@@ -561,7 +564,10 @@ func reverseProxyForTarget(target *url.URL, transport *http.Transport, routePath
 
 	proxy.Director = func(req *http.Request) {
 		incomingHost := req.Host
-		incomingProto := forwardedProto(req)
+		incomingProto := directProto(req)
+		if protoForRequest != nil {
+			incomingProto = protoForRequest(req)
+		}
 		originalURI := req.URL.RequestURI()
 		req.URL.Path = stripRoutePrefix(normalizedRoutePath, req.URL.Path)
 		if req.URL.RawPath != "" {
@@ -580,6 +586,13 @@ func reverseProxyForTarget(target *url.URL, transport *http.Transport, routePath
 	}
 
 	return proxy
+}
+
+func directProto(r *http.Request) string {
+	if r != nil && r.TLS != nil {
+		return "https"
+	}
+	return "http"
 }
 
 func (m *Manager) logAccess(r *http.Request, writer middleware.WrapResponseWriter, startedAt time.Time, route *Route, user *domain.User, outcome, reason string) {
@@ -735,13 +748,13 @@ func (m *Manager) authenticateProxyRequest(r *http.Request) (*domain.User, []uin
 }
 
 func (m *Manager) redirectToRouteLogin(w http.ResponseWriter, r *http.Request, route Route) {
-	location := m.auth.BuildRouteLoginURL(r.Context(), route.ServiceID, requestURL(r))
+	location := m.auth.BuildRouteLoginURL(r.Context(), route.ServiceID, m.requestURL(r))
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusFound)
 }
 
 func (m *Manager) redirectToRouteForbidden(w http.ResponseWriter, r *http.Request, route Route) {
-	location := m.auth.BuildRouteForbiddenURL(r.Context(), route.ServiceID, requestURL(r))
+	location := m.auth.BuildRouteForbiddenURL(r.Context(), route.ServiceID, m.requestURL(r))
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusFound)
 }
@@ -1074,18 +1087,50 @@ func normalizePath(value string) string {
 	return path
 }
 
-func forwardedProto(r *http.Request) string {
-	if proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); proto != "" {
-		return proto
-	}
+func (m *Manager) forwardedProto(r *http.Request) string {
 	if r.TLS != nil {
 		return "https"
+	}
+	if m.requestFromTrustedProxy(r) {
+		if proto := firstForwardedValue(r.Header.Get("X-Forwarded-Proto")); proto != "" {
+			return strings.ToLower(proto)
+		}
 	}
 	return "http"
 }
 
-func requestURL(r *http.Request) string {
-	return forwardedProto(r) + "://" + r.Host + r.URL.RequestURI()
+func (m *Manager) requestURL(r *http.Request) string {
+	return m.forwardedProto(r) + "://" + r.Host + r.URL.RequestURI()
+}
+
+func (m *Manager) requestFromTrustedProxy(r *http.Request) bool {
+	if r == nil || len(m.trustedProxyCIDRs) == 0 {
+		return false
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err != nil {
+		host = strings.TrimSpace(r.RemoteAddr)
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return false
+	}
+	for _, raw := range m.trustedProxyCIDRs {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(raw))
+		if err == nil && prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+func firstForwardedValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	parts := strings.Split(value, ",")
+	return strings.TrimSpace(parts[0])
 }
 
 func expectsTokenAuth(r *http.Request) bool {

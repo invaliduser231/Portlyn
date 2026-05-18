@@ -28,7 +28,10 @@ type Service struct {
 	loginTokens             *store.LoginTokenStore
 	sessions                *store.SessionStore
 	settings                *store.AppSettingsStore
-	jwtSecret               []byte
+	jwtSigningSecret        []byte
+	sessionBridgeSecret     []byte
+	oidcStateSecret         []byte
+	mfaEncryptionSecret     []byte
 	issuer                  string
 	tokenTTL                time.Duration
 	refreshTokenTTL         time.Duration
@@ -91,7 +94,7 @@ func NewService(
 	loginTokens *store.LoginTokenStore,
 	sessions *store.SessionStore,
 	settings *store.AppSettingsStore,
-	jwtSecret, issuer, frontendBaseURL string,
+	jwtSigningSecret, sessionBridgeSecret, oidcStateSecret, mfaEncryptionSecret, issuer, frontendBaseURL string,
 	tokenTTL time.Duration,
 	refreshTokenTTL time.Duration,
 	oidcCfg config.OIDCConfig,
@@ -108,7 +111,10 @@ func NewService(
 		loginTokens:             loginTokens,
 		sessions:                sessions,
 		settings:                settings,
-		jwtSecret:               []byte(jwtSecret),
+		jwtSigningSecret:        []byte(jwtSigningSecret),
+		sessionBridgeSecret:     []byte(sessionBridgeSecret),
+		oidcStateSecret:         []byte(oidcStateSecret),
+		mfaEncryptionSecret:     []byte(mfaEncryptionSecret),
 		issuer:                  issuer,
 		tokenTTL:                tokenTTL,
 		refreshTokenTTL:         refreshTokenTTL,
@@ -225,6 +231,41 @@ func (s *Service) Login(ctx context.Context, email, password string, meta Reques
 	result, err := s.completePrimaryLogin(ctx, user, meta)
 	if err == nil {
 		s.observeAuth("password", "success")
+	}
+	return result, err
+}
+
+func (s *Service) LoginBreakGlass(ctx context.Context, email, password string, meta RequestMetadata) (*LoginResult, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	now := time.Now().UTC()
+	if s.isRateLimited(ctx, "breakglass:"+email, now) || s.isRateLimited(ctx, "breakglass-ip:"+rateLimitRemoteAddr(meta.RemoteAddr), now) {
+		s.observeAuth("break_glass", "rate_limited")
+		return nil, ErrRateLimited
+	}
+
+	user, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			s.observeAuth("break_glass", "invalid_credentials")
+			return nil, ErrInvalidCredentials
+		}
+		return nil, err
+	}
+	if user.Role != domain.RoleAdmin || user.AuthProvider != domain.AuthProviderLocal {
+		s.observeAuth("break_glass", "rejected")
+		return nil, ErrBreakGlassRejected
+	}
+	if err := CheckPassword(user.PasswordHash, password); err != nil {
+		s.observeAuth("break_glass", "invalid_credentials")
+		return nil, ErrInvalidCredentials
+	}
+	if !user.Active {
+		s.observeAuth("break_glass", "inactive")
+		return nil, ErrInactiveUser
+	}
+	result, err := s.completeSuccessfulLogin(ctx, user, meta)
+	if err == nil {
+		s.observeAuth("break_glass", "success")
 	}
 	return result, err
 }
@@ -392,7 +433,7 @@ func (s *Service) ParseToken(tokenString string) (*Claims, error) {
 		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
 		}
-		return s.jwtSecret, nil
+		return s.jwtSigningSecret, nil
 	})
 	if err != nil {
 		return nil, err
@@ -612,7 +653,7 @@ func (s *Service) issueToken(user *domain.User, session *domain.Session) (string
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(s.jwtSecret)
+	return token.SignedString(s.jwtSigningSecret)
 }
 
 func (s *Service) createSession(ctx context.Context, user *domain.User, meta RequestMetadata) (*domain.Session, string, error) {

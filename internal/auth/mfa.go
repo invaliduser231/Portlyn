@@ -337,7 +337,7 @@ func generateTOTP(secret string, now time.Time) string {
 }
 
 func (s *Service) encryptSecret(value string) (string, error) {
-	block, err := aes.NewCipher(deriveSecretKey(s.jwtSecret))
+	block, err := aes.NewCipher(deriveSecretKey(s.mfaEncryptionSecret))
 	if err != nil {
 		return "", err
 	}
@@ -361,7 +361,7 @@ func (s *Service) decryptSecret(value string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	block, err := aes.NewCipher(deriveSecretKey(s.jwtSecret))
+	block, err := aes.NewCipher(deriveSecretKey(s.mfaEncryptionSecret))
 	if err != nil {
 		return "", err
 	}

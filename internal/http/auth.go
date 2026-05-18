@@ -124,10 +124,10 @@ func (s *Server) handleOIDCCallback(w stdhttp.ResponseWriter, r *stdhttp.Request
 		})
 		return
 	}
-	secure := requestSecure(r)
+	secure := s.requestSecure(r)
 	s.auth.SetSessionCookie(w, result.Token, secure)
 	s.auth.SetRefreshCookie(w, result.RefreshToken, secure)
-	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": result.Token, "user": result.User, "next": next})
+	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": s.responseAuthToken(result.Token), "user": result.User, "next": next})
 }
 
 func (s *Server) handleRefreshSession(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -146,10 +146,10 @@ func (s *Server) handleRefreshSession(w stdhttp.ResponseWriter, r *stdhttp.Reque
 		}
 		return
 	}
-	secure := requestSecure(r)
+	secure := s.requestSecure(r)
 	s.auth.SetSessionCookie(w, result.Token, secure)
 	s.auth.SetRefreshCookie(w, result.RefreshToken, secure)
-	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": result.Token, "user": result.User})
+	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": s.responseAuthToken(result.Token), "user": result.User})
 }
 
 func (s *Server) handleVerifyMFA(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -186,10 +186,10 @@ func (s *Server) writeLoginResult(w stdhttp.ResponseWriter, r *stdhttp.Request, 
 		})
 		return
 	}
-	secure := requestSecure(r)
+	secure := s.requestSecure(r)
 	s.auth.SetSessionCookie(w, result.Token, secure)
 	s.auth.SetRefreshCookie(w, result.RefreshToken, secure)
-	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": result.Token, "user": result.User})
+	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": s.responseAuthToken(result.Token), "user": result.User})
 }
 
 func (s *Server) handleLogoutSession(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -199,8 +199,15 @@ func (s *Server) handleLogoutSession(w stdhttp.ResponseWriter, r *stdhttp.Reques
 			_ = s.auth.RevokeSession(r.Context(), claims.UserID, claims.SessionID)
 		}
 	}
-	secure := requestSecure(r)
+	secure := s.requestSecure(r)
 	s.auth.ClearSessionCookie(w, secure)
 	s.auth.ClearRefreshCookie(w, secure)
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) responseAuthToken(token string) string {
+	if s.cfg.ExposeAuthTokens || s.cfg.AllowInsecureDevMode {
+		return token
+	}
+	return ""
 }

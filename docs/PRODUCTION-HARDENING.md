@@ -6,11 +6,18 @@ production security posture by itself.
 ## Required before internet exposure
 
 - Set `ALLOW_INSECURE_DEV_MODE=false`.
-- Set strong values for `JWT_SECRET`, `POSTGRES_PASSWORD`, and `GRAFANA_ADMIN_PASSWORD`.
+- Set strong, distinct values for `JWT_SECRET`, `JWT_SIGNING_SECRET`, `SESSION_BRIDGE_SECRET`, `OIDC_STATE_SECRET`, `MFA_ENCRYPTION_SECRET`, `CSRF_SECRET`, `DATA_ENCRYPTION_SECRET`, `POSTGRES_PASSWORD`, and `GRAFANA_ADMIN_PASSWORD`.
 - Disable bootstrap login after the first admin setup: `BOOTSTRAP_ADMIN_ENABLED=false`.
 - Enroll TOTP for every admin, then set `REQUIRE_MFA_FOR_ADMINS=true`.
 - Set `FRONTEND_BASE_URL`, `CORS_ALLOWED_ORIGINS`, and OIDC redirect settings to the final public URL.
 - Enable TLS for the shared admin/proxy entrypoint before exposing it publicly.
+- Keep `EXPOSE_AUTH_TOKENS=false` so browser auth uses HttpOnly cookies instead of JSON-exposed bearer tokens.
+- Set `TRUSTED_PROXY_CIDRS` only to the exact CIDR ranges of your TLS-terminating load balancers. Leave it empty when Portlyn receives traffic directly.
+- Keep node transport hardening enabled:
+  - `NODE_REQUIRE_HTTPS=true`
+  - `NODE_TRUST_FORWARDED_PROTO=false` unless behind a trusted TLS-terminating proxy listed in `TRUSTED_PROXY_CIDRS`
+  - `NODE_ALLOW_MTLS_HEADER_FALLBACK=false` unless explicitly required behind trusted infrastructure
+  - keep enrollment and heartbeat auth-fail rate limits enabled (`NODE_ENROLL_RATE_*`, `NODE_HEARTBEAT_AUTH_FAIL_RATE_*`)
 
 ## Exposure model
 
@@ -23,8 +30,15 @@ production security posture by itself.
 
 - Keep `OTP_RESPONSE_INCLUDES_CODE=false` outside local development.
 - Use a dedicated SMTP account for OTP and route email flows.
+- Keep signing and encryption secrets separated to reduce blast radius if one key is exposed.
 - Rotate credentials when operators change.
+- For encryption-key rotation use a dual-key window (`DATA_ENCRYPTION_SECRET` + `DATA_ENCRYPTION_LEGACY_SECRETS`) and re-encrypt stored DNS provider secrets.
 - Back up secrets separately from the application host.
+
+## Emergency access
+
+- Keep break-glass disabled by default (`BREAK_GLASS_ENABLED=false`).
+- If enabled for an incident, constrain with short TTL and CIDR allowlist, then disable again after recovery.
 
 ## Storage and recovery
 

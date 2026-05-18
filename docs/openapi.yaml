@@ -190,6 +190,7 @@ components:
       properties:
         token:
           type: string
+          description: Empty in hardened production mode unless EXPOSE_AUTH_TOKENS=true; browser clients should rely on HttpOnly cookies.
         user:
           $ref: "#/components/schemas/User"
         requires_mfa:

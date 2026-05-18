@@ -19,7 +19,7 @@ This guide defines the currently supported high-availability mode for Portlyn.
 
 ## Deployment notes
 
-- Keep `JWT_SECRET` identical across all instances.
+- Keep auth and crypto secrets identical across all instances: `JWT_SIGNING_SECRET`, `SESSION_BRIDGE_SECRET`, `OIDC_STATE_SECRET`, `MFA_ENCRYPTION_SECRET`, `CSRF_SECRET`, and `DATA_ENCRYPTION_SECRET`.
 - Use the same app version across the cluster during rollout.
 - Configure health checks against `/readyz` and `/healthz`.
 - If Redis is unavailable, Portlyn falls back to local mode; this is not a supported HA steady state.

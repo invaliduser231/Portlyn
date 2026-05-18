@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -12,53 +14,77 @@ import (
 )
 
 type Config struct {
-	AppVersion            string
-	HTTPAddr              string
-	FrontendBaseURL       string
-	BootstrapAdminEnabled bool
-	ProxyHTTPAddr         string
-	ProxyHTTPSAddr        string
-	RedisURL              string
-	DatabaseDriver        string
-	DatabaseURL           string
-	DatabasePath          string
-	JWTSecret             string
-	JWTIssuer             string
-	TokenTTL              time.Duration
-	RefreshTokenTTL       time.Duration
-	LogLevel              slog.Level
-	AllowedOrigins        []string
-	AdminEmail            string
-	AdminPassword         string
-	ViewerEmail           string
-	ViewerPassword        string
-	TLSCertFile           string
-	TLSKeyFile            string
-	RedirectHTTPToHTTPS   bool
-	CertificateStorageDir string
-	ACMEEmail             string
-	ACMECAURL             string
-	ACMEEnabled           bool
-	ACMELeader            bool
-	ACMEPollInterval      time.Duration
-	ACMERenewWithin       time.Duration
-	NodeOfflineAfter      time.Duration
-	OIDC                  OIDCConfig
-	OTP                   OTPConfig
-	RouteAuthTTL          time.Duration
-	AuthRateLimit         RateLimitConfig
-	AuthCacheTTL          time.Duration
-	AuditBufferSize       int
-	AuditBatchSize        int
-	AuditFlushInterval    time.Duration
-	AuditDropPolicy       string
-	RouteCacheTTL         time.Duration
-	RouteLocalCacheTTL    time.Duration
-	RouteLocalCacheSize   int
-	AllowInsecureDevMode  bool
-	RequireMFAForAdmins   bool
-	CSRFTokenTTL          time.Duration
-	RequestBodyLimitBytes int64
+	AppVersion                      string
+	HTTPAddr                        string
+	FrontendBaseURL                 string
+	BootstrapAdminEnabled           bool
+	ProxyHTTPAddr                   string
+	ProxyHTTPSAddr                  string
+	RedisURL                        string
+	DatabaseDriver                  string
+	DatabaseURL                     string
+	DatabasePath                    string
+	JWTSecret                       string
+	JWTSigningSecret                string
+	SessionBridgeSecret             string
+	OIDCStateSecret                 string
+	MFAEncryptionSecret             string
+	CSRFSecret                      string
+	DataEncryptionSecret            string
+	DataEncryptionLegacySecrets     []string
+	JWTIssuer                       string
+	TokenTTL                        time.Duration
+	RefreshTokenTTL                 time.Duration
+	LogLevel                        slog.Level
+	AllowedOrigins                  []string
+	TrustedProxyCIDRs               []string
+	ExposeAuthTokens                bool
+	AdminEmail                      string
+	AdminPassword                   string
+	ViewerEmail                     string
+	ViewerPassword                  string
+	TLSCertFile                     string
+	TLSKeyFile                      string
+	RedirectHTTPToHTTPS             bool
+	CertificateStorageDir           string
+	ACMEEmail                       string
+	ACMECAURL                       string
+	ACMEEnabled                     bool
+	ACMELeader                      bool
+	ACMEPollInterval                time.Duration
+	ACMERenewWithin                 time.Duration
+	NodeOfflineAfter                time.Duration
+	NodeRequireHTTPS                bool
+	NodeTrustForwardedProto         bool
+	NodeAllowMTLSHeaderFallback     bool
+	NodeEnrollRateLimit             int
+	NodeEnrollRateWindow            time.Duration
+	NodeHeartbeatAuthFailRateLimit  int
+	NodeHeartbeatAuthFailRateWindow time.Duration
+	BreakGlassEnabled               bool
+	BreakGlassToken                 string
+	BreakGlassTTL                   time.Duration
+	BreakGlassAllowCIDRs            []string
+	AlertLoginFailSpikeThreshold    int
+	AlertNodeHeartbeatFailThreshold int
+	AlertAuditAnomalyThreshold      int
+	AlertWindow                     time.Duration
+	OIDC                            OIDCConfig
+	OTP                             OTPConfig
+	RouteAuthTTL                    time.Duration
+	AuthRateLimit                   RateLimitConfig
+	AuthCacheTTL                    time.Duration
+	AuditBufferSize                 int
+	AuditBatchSize                  int
+	AuditFlushInterval              time.Duration
+	AuditDropPolicy                 string
+	RouteCacheTTL                   time.Duration
+	RouteLocalCacheTTL              time.Duration
+	RouteLocalCacheSize             int
+	AllowInsecureDevMode            bool
+	RequireMFAForAdmins             bool
+	CSRFTokenTTL                    time.Duration
+	RequestBodyLimitBytes           int64
 }
 
 type OIDCConfig struct {
@@ -97,39 +123,64 @@ type ValidationIssue struct {
 
 func Load() (Config, error) {
 	_ = godotenv.Load()
+	jwtSecret := getEnv("JWT_SECRET", "change-me-in-production")
 
 	cfg := Config{
-		AppVersion:            getEnv("APP_VERSION", "dev"),
-		HTTPAddr:              getEnv("HTTP_ADDR", ":8080"),
-		FrontendBaseURL:       strings.TrimRight(getEnv("FRONTEND_BASE_URL", "http://localhost"), "/"),
-		BootstrapAdminEnabled: getEnvBool("BOOTSTRAP_ADMIN_ENABLED", true),
-		ProxyHTTPAddr:         getEnv("PROXY_HTTP_ADDR", ":80"),
-		ProxyHTTPSAddr:        getEnv("PROXY_HTTPS_ADDR", ":443"),
-		RedisURL:              strings.TrimSpace(os.Getenv("REDIS_URL")),
-		DatabaseDriver:        strings.ToLower(getEnv("DATABASE_DRIVER", "")),
-		DatabaseURL:           strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		DatabasePath:          getEnv("DATABASE_PATH", "portlyn.db"),
-		JWTSecret:             getEnv("JWT_SECRET", "change-me-in-production"),
-		JWTIssuer:             getEnv("JWT_ISSUER", "portlyn"),
-		TokenTTL:              getEnvDuration("TOKEN_TTL", 24*time.Hour),
-		RefreshTokenTTL:       getEnvDuration("REFRESH_TOKEN_TTL", 30*24*time.Hour),
-		LogLevel:              getEnvLogLevel("LOG_LEVEL", slog.LevelInfo),
-		AllowedOrigins:        getEnvList("CORS_ALLOWED_ORIGINS", []string{"http://localhost", "http://127.0.0.1"}),
-		AdminEmail:            strings.TrimSpace(os.Getenv("ADMIN_EMAIL")),
-		AdminPassword:         os.Getenv("ADMIN_PASSWORD"),
-		ViewerEmail:           strings.TrimSpace(os.Getenv("VIEWER_EMAIL")),
-		ViewerPassword:        os.Getenv("VIEWER_PASSWORD"),
-		TLSCertFile:           strings.TrimSpace(os.Getenv("TLS_CERT_FILE")),
-		TLSKeyFile:            strings.TrimSpace(os.Getenv("TLS_KEY_FILE")),
-		RedirectHTTPToHTTPS:   getEnvBool("REDIRECT_HTTP_TO_HTTPS", false),
-		CertificateStorageDir: getEnv("CERTIFICATE_STORAGE_DIR", "certificates"),
-		ACMEEmail:             strings.TrimSpace(os.Getenv("ACME_EMAIL")),
-		ACMECAURL:             strings.TrimSpace(os.Getenv("ACME_CA_URL")),
-		ACMEEnabled:           getEnvBool("ACME_ENABLED", false),
-		ACMELeader:            getEnvBool("ACME_LEADER", false),
-		ACMEPollInterval:      getEnvDuration("ACME_POLL_INTERVAL", 1*time.Minute),
-		ACMERenewWithin:       getEnvDuration("ACME_RENEW_WITHIN", 30*24*time.Hour),
-		NodeOfflineAfter:      getEnvDuration("NODE_OFFLINE_AFTER", 2*time.Minute),
+		AppVersion:                      getEnv("APP_VERSION", "dev"),
+		HTTPAddr:                        getEnv("HTTP_ADDR", ":8080"),
+		FrontendBaseURL:                 strings.TrimRight(getEnv("FRONTEND_BASE_URL", "http://localhost"), "/"),
+		BootstrapAdminEnabled:           getEnvBool("BOOTSTRAP_ADMIN_ENABLED", true),
+		ProxyHTTPAddr:                   getEnv("PROXY_HTTP_ADDR", ":80"),
+		ProxyHTTPSAddr:                  getEnv("PROXY_HTTPS_ADDR", ":443"),
+		RedisURL:                        strings.TrimSpace(os.Getenv("REDIS_URL")),
+		DatabaseDriver:                  strings.ToLower(getEnv("DATABASE_DRIVER", "")),
+		DatabaseURL:                     strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		DatabasePath:                    getEnv("DATABASE_PATH", "portlyn.db"),
+		JWTSecret:                       jwtSecret,
+		JWTSigningSecret:                getEnv("JWT_SIGNING_SECRET", jwtSecret),
+		SessionBridgeSecret:             getEnv("SESSION_BRIDGE_SECRET", jwtSecret),
+		OIDCStateSecret:                 getEnv("OIDC_STATE_SECRET", jwtSecret),
+		MFAEncryptionSecret:             getEnv("MFA_ENCRYPTION_SECRET", jwtSecret),
+		CSRFSecret:                      getEnv("CSRF_SECRET", jwtSecret),
+		DataEncryptionSecret:            getEnv("DATA_ENCRYPTION_SECRET", jwtSecret),
+		DataEncryptionLegacySecrets:     getEnvList("DATA_ENCRYPTION_LEGACY_SECRETS", []string{}),
+		JWTIssuer:                       getEnv("JWT_ISSUER", "portlyn"),
+		TokenTTL:                        getEnvDuration("TOKEN_TTL", 24*time.Hour),
+		RefreshTokenTTL:                 getEnvDuration("REFRESH_TOKEN_TTL", 30*24*time.Hour),
+		LogLevel:                        getEnvLogLevel("LOG_LEVEL", slog.LevelInfo),
+		AllowedOrigins:                  getEnvList("CORS_ALLOWED_ORIGINS", []string{"http://localhost", "http://127.0.0.1"}),
+		TrustedProxyCIDRs:               getEnvList("TRUSTED_PROXY_CIDRS", []string{}),
+		ExposeAuthTokens:                getEnvBool("EXPOSE_AUTH_TOKENS", false),
+		AdminEmail:                      strings.TrimSpace(os.Getenv("ADMIN_EMAIL")),
+		AdminPassword:                   os.Getenv("ADMIN_PASSWORD"),
+		ViewerEmail:                     strings.TrimSpace(os.Getenv("VIEWER_EMAIL")),
+		ViewerPassword:                  os.Getenv("VIEWER_PASSWORD"),
+		TLSCertFile:                     strings.TrimSpace(os.Getenv("TLS_CERT_FILE")),
+		TLSKeyFile:                      strings.TrimSpace(os.Getenv("TLS_KEY_FILE")),
+		RedirectHTTPToHTTPS:             getEnvBool("REDIRECT_HTTP_TO_HTTPS", false),
+		CertificateStorageDir:           getEnv("CERTIFICATE_STORAGE_DIR", "certificates"),
+		ACMEEmail:                       strings.TrimSpace(os.Getenv("ACME_EMAIL")),
+		ACMECAURL:                       strings.TrimSpace(os.Getenv("ACME_CA_URL")),
+		ACMEEnabled:                     getEnvBool("ACME_ENABLED", false),
+		ACMELeader:                      getEnvBool("ACME_LEADER", false),
+		ACMEPollInterval:                getEnvDuration("ACME_POLL_INTERVAL", 1*time.Minute),
+		ACMERenewWithin:                 getEnvDuration("ACME_RENEW_WITHIN", 30*24*time.Hour),
+		NodeOfflineAfter:                getEnvDuration("NODE_OFFLINE_AFTER", 2*time.Minute),
+		NodeRequireHTTPS:                getEnvBool("NODE_REQUIRE_HTTPS", true),
+		NodeTrustForwardedProto:         getEnvBool("NODE_TRUST_FORWARDED_PROTO", false),
+		NodeAllowMTLSHeaderFallback:     getEnvBool("NODE_ALLOW_MTLS_HEADER_FALLBACK", false),
+		NodeEnrollRateLimit:             getEnvInt("NODE_ENROLL_RATE_LIMIT", 20),
+		NodeEnrollRateWindow:            getEnvDuration("NODE_ENROLL_RATE_WINDOW", 10*time.Minute),
+		NodeHeartbeatAuthFailRateLimit:  getEnvInt("NODE_HEARTBEAT_AUTH_FAIL_RATE_LIMIT", 20),
+		NodeHeartbeatAuthFailRateWindow: getEnvDuration("NODE_HEARTBEAT_AUTH_FAIL_RATE_WINDOW", 1*time.Minute),
+		BreakGlassEnabled:               getEnvBool("BREAK_GLASS_ENABLED", false),
+		BreakGlassToken:                 strings.TrimSpace(os.Getenv("BREAK_GLASS_TOKEN")),
+		BreakGlassTTL:                   getEnvDuration("BREAK_GLASS_TTL", 15*time.Minute),
+		BreakGlassAllowCIDRs:            getEnvList("BREAK_GLASS_ALLOW_CIDRS", []string{"127.0.0.1/32", "::1/128"}),
+		AlertLoginFailSpikeThreshold:    getEnvInt("ALERT_LOGIN_FAIL_SPIKE_THRESHOLD", 20),
+		AlertNodeHeartbeatFailThreshold: getEnvInt("ALERT_NODE_HEARTBEAT_FAIL_THRESHOLD", 20),
+		AlertAuditAnomalyThreshold:      getEnvInt("ALERT_AUDIT_ANOMALY_THRESHOLD", 10),
+		AlertWindow:                     getEnvDuration("ALERT_WINDOW", 15*time.Minute),
 		OIDC: OIDCConfig{
 			Enabled:              getEnvBool("OIDC_ENABLED", false),
 			IssuerURL:            strings.TrimSpace(os.Getenv("OIDC_ISSUER_URL")),
@@ -187,8 +238,22 @@ func (cfg *Config) ValidationIssues() []ValidationIssue {
 	add := func(level, field, code, message string) {
 		issues = append(issues, ValidationIssue{Level: level, Field: field, Code: code, Message: message})
 	}
-	if cfg.JWTSecret == "" {
-		add("error", "JWT_SECRET", "missing_secret", "JWT_SECRET must not be empty")
+	secretFields := []struct {
+		Field string
+		Value string
+	}{
+		{Field: "JWT_SECRET", Value: cfg.JWTSecret},
+		{Field: "JWT_SIGNING_SECRET", Value: cfg.JWTSigningSecret},
+		{Field: "SESSION_BRIDGE_SECRET", Value: cfg.SessionBridgeSecret},
+		{Field: "OIDC_STATE_SECRET", Value: cfg.OIDCStateSecret},
+		{Field: "MFA_ENCRYPTION_SECRET", Value: cfg.MFAEncryptionSecret},
+		{Field: "CSRF_SECRET", Value: cfg.CSRFSecret},
+		{Field: "DATA_ENCRYPTION_SECRET", Value: cfg.DataEncryptionSecret},
+	}
+	for _, secret := range secretFields {
+		if strings.TrimSpace(secret.Value) == "" {
+			add("error", secret.Field, "missing_secret", secret.Field+" must not be empty")
+		}
 	}
 	if cfg.DatabaseDriver == "" {
 		if cfg.DatabaseURL != "" {
@@ -211,8 +276,28 @@ func (cfg *Config) ValidationIssues() []ValidationIssue {
 		add("error", "DATABASE_DRIVER", "unsupported_database_driver", fmt.Sprintf("unsupported DATABASE_DRIVER %q", cfg.DatabaseDriver))
 	}
 	if !cfg.AllowInsecureDevMode {
-		if cfg.JWTSecret == "change-me-in-production" || len(cfg.JWTSecret) < 32 {
-			add("error", "JWT_SECRET", "weak_secret", "JWT_SECRET must be unique and at least 32 characters unless ALLOW_INSECURE_DEV_MODE=true")
+		for _, secret := range secretFields {
+			if secret.Value == "change-me-in-production" || len(secret.Value) < 32 {
+				add("error", secret.Field, "weak_secret", secret.Field+" must be unique and at least 32 characters unless ALLOW_INSECURE_DEV_MODE=true")
+			}
+		}
+		seenSecrets := map[string]string{}
+		for _, secret := range secretFields[1:] {
+			key := strings.TrimSpace(secret.Value)
+			if existingField, exists := seenSecrets[key]; exists {
+				add("error", secret.Field, "secret_reuse", secret.Field+" must be different from "+existingField+" outside insecure dev mode")
+				continue
+			}
+			seenSecrets[key] = secret.Field
+		}
+		if !secureOrLocalURL(cfg.FrontendBaseURL) {
+			add("error", "FRONTEND_BASE_URL", "insecure_frontend_base_url", "FRONTEND_BASE_URL must use https outside local development")
+		}
+		for _, origin := range cfg.AllowedOrigins {
+			if !secureOrLocalURL(origin) {
+				add("error", "CORS_ALLOWED_ORIGINS", "insecure_cors_origin", "CORS_ALLOWED_ORIGINS must use https outside local development")
+				break
+			}
 		}
 		if cfg.OTP.ResponseIncludesCode {
 			add("error", "OTP_RESPONSE_INCLUDES_CODE", "unsafe_otp_setting", "OTP_RESPONSE_INCLUDES_CODE must be false unless ALLOW_INSECURE_DEV_MODE=true")
@@ -238,10 +323,91 @@ func (cfg *Config) ValidationIssues() []ValidationIssue {
 	if cfg.RequestBodyLimitBytes <= 0 {
 		add("error", "REQUEST_BODY_LIMIT_BYTES", "invalid_request_body_limit", "REQUEST_BODY_LIMIT_BYTES must be greater than zero")
 	}
+	if cfg.NodeEnrollRateLimit <= 0 {
+		add("error", "NODE_ENROLL_RATE_LIMIT", "invalid_node_enroll_rate_limit", "NODE_ENROLL_RATE_LIMIT must be greater than zero")
+	}
+	if cfg.NodeEnrollRateWindow <= 0 {
+		add("error", "NODE_ENROLL_RATE_WINDOW", "invalid_node_enroll_rate_window", "NODE_ENROLL_RATE_WINDOW must be greater than zero")
+	}
+	if cfg.NodeHeartbeatAuthFailRateLimit <= 0 {
+		add("error", "NODE_HEARTBEAT_AUTH_FAIL_RATE_LIMIT", "invalid_node_heartbeat_auth_fail_rate_limit", "NODE_HEARTBEAT_AUTH_FAIL_RATE_LIMIT must be greater than zero")
+	}
+	if cfg.NodeHeartbeatAuthFailRateWindow <= 0 {
+		add("error", "NODE_HEARTBEAT_AUTH_FAIL_RATE_WINDOW", "invalid_node_heartbeat_auth_fail_rate_window", "NODE_HEARTBEAT_AUTH_FAIL_RATE_WINDOW must be greater than zero")
+	}
+	if cfg.BreakGlassEnabled {
+		if strings.TrimSpace(cfg.BreakGlassToken) == "" {
+			add("error", "BREAK_GLASS_TOKEN", "missing_break_glass_token", "BREAK_GLASS_TOKEN must be set when BREAK_GLASS_ENABLED=true")
+		}
+		if cfg.BreakGlassTTL <= 0 {
+			add("error", "BREAK_GLASS_TTL", "invalid_break_glass_ttl", "BREAK_GLASS_TTL must be greater than zero")
+		}
+		for _, raw := range cfg.BreakGlassAllowCIDRs {
+			if strings.TrimSpace(raw) == "" {
+				continue
+			}
+			if _, err := netip.ParsePrefix(strings.TrimSpace(raw)); err != nil {
+				add("error", "BREAK_GLASS_ALLOW_CIDRS", "invalid_break_glass_allow_cidr", "BREAK_GLASS_ALLOW_CIDRS entries must be CIDR prefixes")
+				break
+			}
+		}
+	}
+	if cfg.NodeAllowMTLSHeaderFallback && !cfg.NodeTrustForwardedProto {
+		add("error", "NODE_ALLOW_MTLS_HEADER_FALLBACK", "unsafe_mtls_header_fallback", "NODE_ALLOW_MTLS_HEADER_FALLBACK requires NODE_TRUST_FORWARDED_PROTO=true behind a trusted proxy")
+	}
+	if cfg.NodeTrustForwardedProto && len(cfg.TrustedProxyCIDRs) == 0 {
+		add("error", "NODE_TRUST_FORWARDED_PROTO", "missing_trusted_proxy_cidrs", "NODE_TRUST_FORWARDED_PROTO requires TRUSTED_PROXY_CIDRS")
+	}
+	if !cfg.AllowInsecureDevMode {
+		if cfg.ExposeAuthTokens {
+			add("error", "EXPOSE_AUTH_TOKENS", "unsafe_token_exposure", "EXPOSE_AUTH_TOKENS must be false unless ALLOW_INSECURE_DEV_MODE=true")
+		}
+		if !cfg.NodeRequireHTTPS {
+			add("error", "NODE_REQUIRE_HTTPS", "node_https_required", "NODE_REQUIRE_HTTPS must be true unless ALLOW_INSECURE_DEV_MODE=true")
+		}
+		if cfg.NodeAllowMTLSHeaderFallback {
+			add("warn", "NODE_ALLOW_MTLS_HEADER_FALLBACK", "mtls_header_fallback_enabled", "mTLS header fallback is enabled; prefer direct TLS client cert validation")
+		}
+	}
 	if cfg.RedirectHTTPToHTTPS && cfg.ProxyHTTPSAddr == "" {
 		add("error", "PROXY_HTTPS_ADDR", "missing_https_listener", "PROXY_HTTPS_ADDR must be configured when REDIRECT_HTTP_TO_HTTPS=true")
 	}
+	if cfg.AlertLoginFailSpikeThreshold <= 0 {
+		add("error", "ALERT_LOGIN_FAIL_SPIKE_THRESHOLD", "invalid_alert_login_fail_spike_threshold", "ALERT_LOGIN_FAIL_SPIKE_THRESHOLD must be greater than zero")
+	}
+	if cfg.AlertNodeHeartbeatFailThreshold <= 0 {
+		add("error", "ALERT_NODE_HEARTBEAT_FAIL_THRESHOLD", "invalid_alert_node_heartbeat_fail_threshold", "ALERT_NODE_HEARTBEAT_FAIL_THRESHOLD must be greater than zero")
+	}
+	if cfg.AlertAuditAnomalyThreshold <= 0 {
+		add("error", "ALERT_AUDIT_ANOMALY_THRESHOLD", "invalid_alert_audit_anomaly_threshold", "ALERT_AUDIT_ANOMALY_THRESHOLD must be greater than zero")
+	}
+	if cfg.AlertWindow <= 0 {
+		add("error", "ALERT_WINDOW", "invalid_alert_window", "ALERT_WINDOW must be greater than zero")
+	}
+	for _, raw := range cfg.TrustedProxyCIDRs {
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		if _, err := netip.ParsePrefix(strings.TrimSpace(raw)); err != nil {
+			add("error", "TRUSTED_PROXY_CIDRS", "invalid_trusted_proxy_cidr", "TRUSTED_PROXY_CIDRS entries must be CIDR prefixes")
+			break
+		}
+	}
 	return issues
+}
+
+func (cfg Config) DataEncryptionSecrets() []string {
+	secrets := make([]string, 0, 1+len(cfg.DataEncryptionLegacySecrets))
+	if strings.TrimSpace(cfg.DataEncryptionSecret) != "" {
+		secrets = append(secrets, strings.TrimSpace(cfg.DataEncryptionSecret))
+	}
+	for _, item := range cfg.DataEncryptionLegacySecrets {
+		value := strings.TrimSpace(item)
+		if value != "" {
+			secrets = append(secrets, value)
+		}
+	}
+	return secrets
 }
 
 func getEnv(key, fallback string) string {
@@ -336,4 +502,23 @@ func getEnvInt64(key string, fallback int64) int64 {
 		return fallback
 	}
 	return parsed
+}
+
+func secureOrLocalURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return false
+	}
+	if strings.EqualFold(parsed.Scheme, "https") {
+		return true
+	}
+	if !strings.EqualFold(parsed.Scheme, "http") {
+		return false
+	}
+	switch strings.ToLower(parsed.Hostname()) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
 }

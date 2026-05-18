@@ -19,7 +19,7 @@ func (l *fakeRateLimiter) Allow(context.Context, string, int, time.Duration) (bo
 }
 
 func TestServiceUsesConfiguredRateLimiter(t *testing.T) {
-	service, err := NewService(nil, nil, nil, nil, nil, "12345678901234567890123456789012", "portlyn", "", time.Minute, time.Minute, config.OIDCConfig{}, config.OTPConfig{}, time.Minute, config.RateLimitConfig{
+	service, err := NewService(nil, nil, nil, nil, nil, "12345678901234567890123456789012", "12345678901234567890123456789013", "12345678901234567890123456789014", "12345678901234567890123456789015", "portlyn", "", time.Minute, time.Minute, config.OIDCConfig{}, config.OTPConfig{}, time.Minute, config.RateLimitConfig{
 		LoginAttempts: 1,
 		Window:        time.Minute,
 	}, time.Minute, true, nil)

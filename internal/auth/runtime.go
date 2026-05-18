@@ -106,7 +106,7 @@ func (s *Service) getOIDCAuthenticator(ctx context.Context) (*OIDCAuthenticator,
 	}
 	s.oidcMu.RUnlock()
 
-	authenticator, err := NewOIDCAuthenticator(cfg, s.jwtSecret)
+	authenticator, err := NewOIDCAuthenticator(cfg, s.oidcStateSecret)
 	if err != nil {
 		return nil, err
 	}

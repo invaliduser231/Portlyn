@@ -95,7 +95,7 @@ func TestIntegrationStartupSmoke(t *testing.T) {
 	}
 }
 
-func newIntegrationServer(t *testing.T) (*Server, func()) {
+func newIntegrationServer(t *testing.T, mutate ...func(*config.Config)) (*Server, func()) {
 	t.Helper()
 	dir := t.TempDir()
 	cfg := config.Config{
@@ -105,6 +105,12 @@ func newIntegrationServer(t *testing.T) (*Server, func()) {
 		DatabaseDriver:        "sqlite",
 		DatabasePath:          filepath.Join(dir, "portlyn.db"),
 		JWTSecret:             "12345678901234567890123456789012",
+		JWTSigningSecret:      "12345678901234567890123456789012",
+		SessionBridgeSecret:   "12345678901234567890123456789013",
+		OIDCStateSecret:       "12345678901234567890123456789014",
+		MFAEncryptionSecret:   "12345678901234567890123456789015",
+		CSRFSecret:            "12345678901234567890123456789016",
+		DataEncryptionSecret:  "12345678901234567890123456789017",
 		JWTIssuer:             "portlyn-test",
 		FrontendBaseURL:       "http://localhost:3000",
 		TokenTTL:              time.Hour,
@@ -123,6 +129,11 @@ func newIntegrationServer(t *testing.T) (*Server, func()) {
 			ResponseIncludesCode: true,
 		},
 	}
+	for _, fn := range mutate {
+		if fn != nil {
+			fn(&cfg)
+		}
+	}
 
 	db, err := store.NewDatabase(cfg)
 	if err != nil {
@@ -140,7 +151,7 @@ func newIntegrationServer(t *testing.T) (*Server, func()) {
 	if err := appSettingsStore.SeedDefaults(context.Background(), cfg); err != nil {
 		t.Fatalf("seed settings: %v", err)
 	}
-	authService, err := auth.NewService(userStore, groupStore, loginTokenStore, sessionStore, appSettingsStore, cfg.JWTSecret, cfg.JWTIssuer, cfg.FrontendBaseURL, cfg.TokenTTL, cfg.RefreshTokenTTL, cfg.OIDC, cfg.OTP, cfg.RouteAuthTTL, cfg.AuthRateLimit, cfg.AuthCacheTTL, cfg.AllowInsecureDevMode, nil)
+	authService, err := auth.NewService(userStore, groupStore, loginTokenStore, sessionStore, appSettingsStore, cfg.JWTSigningSecret, cfg.SessionBridgeSecret, cfg.OIDCStateSecret, cfg.MFAEncryptionSecret, cfg.JWTIssuer, cfg.FrontendBaseURL, cfg.TokenTTL, cfg.RefreshTokenTTL, cfg.OIDC, cfg.OTP, cfg.RouteAuthTTL, cfg.AuthRateLimit, cfg.AuthCacheTTL, cfg.AllowInsecureDevMode, nil)
 	if err != nil {
 		t.Fatalf("new auth service: %v", err)
 	}

@@ -19,11 +19,17 @@ import (
 	"portlyn/internal/secureconfig"
 )
 
-func buildDNSProvider(secret string, item *domain.DNSProvider) (libdns.RecordAppender, libdns.RecordDeleter, error) {
+func buildDNSProvider(secrets []string, item *domain.DNSProvider) (libdns.RecordAppender, libdns.RecordDeleter, error) {
 	if item == nil {
 		return nil, nil, fmt.Errorf("dns provider is required")
 	}
-	config, err := secureconfig.DecryptJSON([]byte(secret), item.ConfigEncrypted)
+	keySet := make([][]byte, 0, len(secrets))
+	for _, secret := range secrets {
+		if strings.TrimSpace(secret) != "" {
+			keySet = append(keySet, []byte(secret))
+		}
+	}
+	config, err := secureconfig.DecryptJSONWithSecrets(keySet, item.ConfigEncrypted)
 	if err != nil {
 		return nil, nil, err
 	}

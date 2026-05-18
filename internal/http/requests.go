@@ -23,6 +23,16 @@ type verifyMFARequest struct {
 	Code     string `json:"code" validate:"required,min=6,max=32"`
 }
 
+type breakGlassLoginRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=8"`
+	Token    string `json:"token" validate:"required,min=16,max=512"`
+}
+
+type reencryptDataKeyRequest struct {
+	DryRun bool `json:"dry_run"`
+}
+
 type createNodeRequest struct {
 	Name        string     `json:"name" validate:"required,min=2,max=255"`
 	Description string     `json:"description"`
