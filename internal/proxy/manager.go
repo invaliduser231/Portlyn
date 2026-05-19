@@ -626,7 +626,6 @@ func (m *Manager) logAccess(r *http.Request, writer middleware.WrapResponseWrite
 		"method", r.Method,
 		"host", normalizeHost(r.Host),
 		"path", r.URL.Path,
-		"query", r.URL.RawQuery,
 		"status", statusCode,
 		"latency_ms", latency.Milliseconds(),
 		"bytes", writer.BytesWritten(),
@@ -643,7 +642,6 @@ func (m *Manager) logAccess(r *http.Request, writer middleware.WrapResponseWrite
 	details := map[string]any{
 		"outcome": outcome,
 		"reason":  reason,
-		"query":   r.URL.RawQuery,
 		"bytes":   writer.BytesWritten(),
 	}
 
@@ -651,7 +649,7 @@ func (m *Manager) logAccess(r *http.Request, writer middleware.WrapResponseWrite
 		args = append(args,
 			"service_id", route.ServiceID,
 			"service_name", route.ServiceName,
-			"target_url", route.TargetURL,
+			"target_host", targetHostForLogs(route.TargetURL),
 			"route_host", route.Host,
 			"route_path", route.Path,
 			"access_mode", route.EffectivePolicy.AccessMode,
@@ -661,13 +659,13 @@ func (m *Manager) logAccess(r *http.Request, writer middleware.WrapResponseWrite
 		resourceID = &route.ServiceID
 		resourceType = "service"
 		details["service_name"] = route.ServiceName
-		details["target_url"] = route.TargetURL
+		details["target_host"] = targetHostForLogs(route.TargetURL)
 		details["route_path"] = route.Path
 	}
 	if user != nil {
 		userID = &user.ID
-		args = append(args, "user_id", user.ID, "user_email", user.Email, "user_role", user.Role)
-		details["user_email"] = user.Email
+		args = append(args, "user_id", user.ID, "user_role", user.Role)
+		details["user_id"] = user.ID
 	}
 	if m.logger != nil {
 		m.logger.Info("proxy request completed", args...)
@@ -691,6 +689,14 @@ func (m *Manager) logAccess(r *http.Request, writer middleware.WrapResponseWrite
 			Details:      details,
 		})
 	}
+}
+
+func targetHostForLogs(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
 }
 
 func (m *Manager) authorizeRequest(w http.ResponseWriter, r *http.Request, route Route) (*domain.User, []uint, bool) {

@@ -5,7 +5,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	stdhttp "net/http"
+	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -523,19 +526,25 @@ func (s *Server) handleListServices(w stdhttp.ResponseWriter, r *stdhttp.Request
 		s.internalError(w, err)
 		return
 	}
-	healthByServiceID := s.evaluateServicesHealth(r.Context(), items)
 	user, _ := auth.UserFromContext(r.Context())
 	groupIDs, _ := auth.GroupIDsFromContext(r.Context())
-	response := make([]map[string]any, 0, len(items))
+	isViewer := user != nil && user.Role == domain.RoleViewer
+	visible := make([]domain.Service, 0, len(items))
 	for _, item := range items {
-		if user != nil && user.Role == domain.RoleViewer {
-			if !viewerCanAccessService(user, groupIDs, item) {
-				continue
-			}
-			response = append(response, viewerServiceResponse(item, healthByServiceID[item.ID]))
+		if isViewer && !viewerCanAccessService(user, groupIDs, item) {
 			continue
 		}
-		response = append(response, serviceResponse(item, healthByServiceID[item.ID]))
+		visible = append(visible, item)
+	}
+
+	healthByServiceID := s.evaluateServicesHealth(r.Context(), visible)
+	response := make([]map[string]any, 0, len(visible))
+	for _, item := range visible {
+		if isViewer {
+			response = append(response, viewerServiceResponse(item, healthByServiceID[item.ID]))
+		} else {
+			response = append(response, serviceResponse(item, healthByServiceID[item.ID]))
+		}
 	}
 	writeJSON(w, stdhttp.StatusOK, response)
 }
@@ -546,13 +555,17 @@ func (s *Server) evaluateServicesHealth(ctx context.Context, items []domain.Serv
 		return results
 	}
 
+	const maxConcurrentServiceHealthProbes = 8
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	semaphore := make(chan struct{}, maxConcurrentServiceHealthProbes)
 	for _, item := range items {
 		item := item
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 			health := s.evaluateServiceHealth(ctx, item)
 			mu.Lock()
 			results[item.ID] = health
@@ -567,6 +580,14 @@ func (s *Server) evaluateServiceHealth(ctx context.Context, item domain.Service)
 	checkedAt := time.Now().UTC()
 	if item.LastDeployedAt == nil {
 		return serviceHealthInfo{Status: "pending", Reason: "not_deployed", CheckedAt: checkedAt}
+	}
+	if err := validateServiceTargetURL(item.TargetURL); err != nil {
+		return serviceHealthInfo{
+			Status:    "unhealthy",
+			Error:     err.Error(),
+			Reason:    "invalid_target_url",
+			CheckedAt: checkedAt,
+		}
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
@@ -705,6 +726,10 @@ func (s *Server) handleCreateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 		IPBlocklist:          normalizeStringList(req.IPBlocklist),
 		AccessWindows:        toAccessWindows(req.AccessWindows),
 	}
+	if err := validateServiceTargetURL(item.TargetURL); err != nil {
+		writeError(w, stdhttp.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
 	if err := s.services.Create(r.Context(), item); err != nil {
 		s.internalError(w, err)
 		return
@@ -766,6 +791,10 @@ func (s *Server) handleUpdateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 	}
 	if req.TargetURL != nil {
 		item.TargetURL = *req.TargetURL
+		if err := validateServiceTargetURL(item.TargetURL); err != nil {
+			writeError(w, stdhttp.StatusBadRequest, "validation_error", err.Error())
+			return
+		}
 	}
 	if req.TLSMode != nil {
 		item.TLSMode = *req.TLSMode
@@ -830,6 +859,31 @@ func (s *Server) handleUpdateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "update", "service", &deployed.ID, deployed)
 
 	writeJSON(w, stdhttp.StatusOK, serviceResponse(*deployed, s.evaluateServiceHealth(r.Context(), *deployed)))
+}
+
+var blockedHealthProbeHosts = map[string]struct{}{
+	"169.254.169.254": {},
+}
+
+func validateServiceTargetURL(raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("target_url must be a valid URL")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("target_url scheme must be http or https")
+	}
+	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	if host == "" {
+		return fmt.Errorf("target_url host must not be empty")
+	}
+	if _, blocked := blockedHealthProbeHosts[host]; blocked {
+		return fmt.Errorf("target_url host is blocked for security reasons")
+	}
+	if ip, err := netip.ParseAddr(host); err == nil && ip.IsLinkLocalUnicast() {
+		return fmt.Errorf("target_url host is blocked for security reasons")
+	}
+	return nil
 }
 
 func (s *Server) handleDeleteService(w stdhttp.ResponseWriter, r *stdhttp.Request) {

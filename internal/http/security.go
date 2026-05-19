@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +26,11 @@ func (s *Server) securityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), usb=()")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https: http:")
+		csp := "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; style-src 'self'; script-src 'self'; connect-src 'self' https:"
+		if s.cfg.AllowInsecureDevMode {
+			csp = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https: http:"
+		}
+		w.Header().Set("Content-Security-Policy", csp)
 		if !s.cfg.AllowInsecureDevMode {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 		}
@@ -103,7 +110,31 @@ func (s *Server) validCSRFCookie(value string) bool {
 }
 
 func (s *Server) isNodeAuthPath(path string) bool {
-	return strings.HasPrefix(path, "/api/v1/nodes/enroll") || strings.Contains(path, "/heartbeat")
+	normalized := normalizeNodeAuthPath(path)
+	if normalized == "/api/v1/nodes/enroll" {
+		return true
+	}
+	matches := heartbeatPathPattern.FindStringSubmatch(normalized)
+	if len(matches) != 2 {
+		return false
+	}
+	_, err := strconv.ParseUint(matches[1], 10, 64)
+	return err == nil
+}
+
+var heartbeatPathPattern = regexp.MustCompile(`^/api/v1/nodes/([0-9]+)/heartbeat$`)
+
+func normalizeNodeAuthPath(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "/"
+	}
+	parsed, err := url.Parse(trimmed)
+	if err == nil && parsed.Path != "" {
+		trimmed = parsed.Path
+	}
+	cleaned := path.Clean("/" + strings.TrimPrefix(trimmed, "/"))
+	return cleaned
 }
 
 func isSafeMethod(method string) bool {

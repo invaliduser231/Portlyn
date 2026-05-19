@@ -36,7 +36,7 @@ Portlyn is designed for Linux-first Docker deployments and ships with a default 
 Default endpoints:
 
 - Frontend and proxy entrypoint: `http://localhost` or `https://localhost`
-- API: `http://localhost:8080`
+- API (localhost only by default): `http://localhost:8080`
 - Loki: `http://localhost:3100`
 - Grafana: `http://localhost:3001`
 

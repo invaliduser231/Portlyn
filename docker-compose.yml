@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "${PORTLYN_API_PORT:-8080}:8080"
+      - "${PORTLYN_API_BIND_ADDR:-127.0.0.1}:${PORTLYN_API_PORT:-8080}:8080"
       - "${PORTLYN_HTTP_PORT:-80}:80"
       - "${PORTLYN_HTTPS_PORT:-443}:443"
     environment:
@@ -135,8 +135,8 @@ services:
     labels:
       logging: "alloy"
       service: "frontend"
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
 
   loki:
     image: grafana/loki:3.6.3
@@ -144,7 +144,7 @@ services:
     init: true
     command: ["-config.file=/etc/loki/config.yml"]
     ports:
-      - "${LOKI_PORT:-3100}:3100"
+      - "${LOKI_BIND_ADDR:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
     volumes:
       - ./deploy/loki/config.yml:/etc/loki/config.yml:ro
       - portlyn_loki_data:/loki
@@ -166,7 +166,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "${GRAFANA_BIND_ADDR:-127.0.0.1}:${GRAFANA_PORT:-3001}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env.docker}"

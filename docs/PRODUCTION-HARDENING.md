@@ -13,6 +13,7 @@ production security posture by itself.
 - Enable TLS for the shared admin/proxy entrypoint before exposing it publicly.
 - Keep `EXPOSE_AUTH_TOKENS=false` so browser auth uses HttpOnly cookies instead of JSON-exposed bearer tokens.
 - Keep `METRICS_PUBLIC=false` unless `/metrics` is protected by a dedicated network/auth layer.
+- Keep internal admin and observability binds local by default (`PORTLYN_API_BIND_ADDR=127.0.0.1`, `LOKI_BIND_ADDR=127.0.0.1`, `GRAFANA_BIND_ADDR=127.0.0.1`).
 - Set `TRUSTED_PROXY_CIDRS` only to the exact CIDR ranges of your TLS-terminating load balancers. Leave it empty when Portlyn receives traffic directly.
 - Keep node transport hardening enabled:
   - `NODE_REQUIRE_HTTPS=true`

@@ -130,6 +130,9 @@ func probeHTTPHealthTarget(ctx context.Context, client *http.Client, target HTTP
 	if strings.TrimSpace(target.URL) == "" {
 		return errors.New("target url is empty")
 	}
+	if err := validateServiceTargetURL(target.URL); err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, target.URL, nil)
 	if err != nil {
 		return err

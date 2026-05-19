@@ -173,6 +173,36 @@ func TestSecurityAlertsEndpoint(t *testing.T) {
 	}
 }
 
+func TestIsNodeAuthPathMatchesOnlyExpectedRoutes(t *testing.T) {
+	server, cleanup := newIntegrationServer(t)
+	defer cleanup()
+
+	if !server.isNodeAuthPath("/api/v1/nodes/enroll") {
+		t.Fatal("expected enroll endpoint to bypass csrf")
+	}
+	if !server.isNodeAuthPath("/api/v1/nodes/42/heartbeat") {
+		t.Fatal("expected node heartbeat endpoint to bypass csrf")
+	}
+	if server.isNodeAuthPath("/api/v1/nodes/heartbeat-debug") {
+		t.Fatal("unexpected csrf bypass for non-node heartbeat path")
+	}
+	if server.isNodeAuthPath("/api/v1/auth/heartbeat/reset") {
+		t.Fatal("unexpected csrf bypass for auth heartbeat path")
+	}
+}
+
+func TestValidateServiceTargetURL(t *testing.T) {
+	if err := validateServiceTargetURL("https://service.internal:8443/app"); err != nil {
+		t.Fatalf("expected https service target to be valid: %v", err)
+	}
+	if err := validateServiceTargetURL("ftp://example.com"); err == nil {
+		t.Fatal("expected non-http target scheme to be rejected")
+	}
+	if err := validateServiceTargetURL("http://169.254.169.254/latest/meta-data"); err == nil {
+		t.Fatal("expected metadata endpoint target to be blocked")
+	}
+}
+
 func loginAsAdmin(t *testing.T, server *Server, email, password string) string {
 	t.Helper()
 	hash, err := auth.HashPassword(password)

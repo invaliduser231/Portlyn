@@ -127,6 +127,7 @@ type ValidationIssue struct {
 func Load() (Config, error) {
 	_ = godotenv.Load()
 	secrets := make(map[string]string, 7)
+	allowInsecureDevMode := getEnvBool("ALLOW_INSECURE_DEV_MODE", false)
 
 	cfg := Config{
 		AppVersion:                      getEnv("APP_VERSION", "dev"),
@@ -139,13 +140,13 @@ func Load() (Config, error) {
 		DatabaseDriver:                  strings.ToLower(getEnv("DATABASE_DRIVER", "")),
 		DatabaseURL:                     strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		DatabasePath:                    getEnv("DATABASE_PATH", "portlyn.db"),
-		JWTSecret:                       getSecretEnv("JWT_SECRET", secrets),
-		JWTSigningSecret:                getSecretEnv("JWT_SIGNING_SECRET", secrets),
-		SessionBridgeSecret:             getSecretEnv("SESSION_BRIDGE_SECRET", secrets),
-		OIDCStateSecret:                 getSecretEnv("OIDC_STATE_SECRET", secrets),
-		MFAEncryptionSecret:             getSecretEnv("MFA_ENCRYPTION_SECRET", secrets),
-		CSRFSecret:                      getSecretEnv("CSRF_SECRET", secrets),
-		DataEncryptionSecret:            getSecretEnv("DATA_ENCRYPTION_SECRET", secrets),
+		JWTSecret:                       getSecretEnv("JWT_SECRET", secrets, allowInsecureDevMode),
+		JWTSigningSecret:                getSecretEnv("JWT_SIGNING_SECRET", secrets, allowInsecureDevMode),
+		SessionBridgeSecret:             getSecretEnv("SESSION_BRIDGE_SECRET", secrets, allowInsecureDevMode),
+		OIDCStateSecret:                 getSecretEnv("OIDC_STATE_SECRET", secrets, allowInsecureDevMode),
+		MFAEncryptionSecret:             getSecretEnv("MFA_ENCRYPTION_SECRET", secrets, allowInsecureDevMode),
+		CSRFSecret:                      getSecretEnv("CSRF_SECRET", secrets, allowInsecureDevMode),
+		DataEncryptionSecret:            getSecretEnv("DATA_ENCRYPTION_SECRET", secrets, allowInsecureDevMode),
 		DataEncryptionLegacySecrets:     getEnvList("DATA_ENCRYPTION_LEGACY_SECRETS", []string{}),
 		JWTIssuer:                       getEnv("JWT_ISSUER", "portlyn"),
 		TokenTTL:                        getEnvDuration("TOKEN_TTL", 30*time.Minute),
@@ -218,7 +219,7 @@ func Load() (Config, error) {
 		RouteCacheTTL:         getEnvDuration("ROUTE_CACHE_TTL", 30*time.Second),
 		RouteLocalCacheTTL:    getEnvDuration("ROUTE_LOCAL_CACHE_TTL", 5*time.Second),
 		RouteLocalCacheSize:   getEnvInt("ROUTE_LOCAL_CACHE_SIZE", 2048),
-		AllowInsecureDevMode:  getEnvBool("ALLOW_INSECURE_DEV_MODE", false),
+		AllowInsecureDevMode:  allowInsecureDevMode,
 		RequireMFAForAdmins:   getEnvBool("REQUIRE_MFA_FOR_ADMINS", true),
 		CSRFTokenTTL:          getEnvDuration("CSRF_TOKEN_TTL", 12*time.Hour),
 		RequestBodyLimitBytes: getEnvInt64("REQUEST_BODY_LIMIT_BYTES", 1<<20),
@@ -432,10 +433,13 @@ func getEnv(key, fallback string) string {
 	return value
 }
 
-func getSecretEnv(key string, generated map[string]string) string {
+func getSecretEnv(key string, generated map[string]string, allowInsecureDevMode bool) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value != "" {
 		return value
+	}
+	if !allowInsecureDevMode {
+		return ""
 	}
 	if existing, ok := generated[key]; ok {
 		return existing

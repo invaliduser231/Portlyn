@@ -35,7 +35,6 @@ func (s *Server) accessLogMiddleware(channel string) func(http.Handler) http.Han
 				"method", r.Method,
 				"host", r.Host,
 				"path", r.URL.Path,
-				"query", r.URL.RawQuery,
 				"status", statusCode,
 				"latency_ms", latency.Milliseconds(),
 				"bytes", writer.BytesWritten(),
@@ -46,7 +45,7 @@ func (s *Server) accessLogMiddleware(channel string) func(http.Handler) http.Han
 			var userID *uint
 			if user, ok := auth.UserFromContext(r.Context()); ok && user != nil {
 				userID = &user.ID
-				args = append(args, "user_id", user.ID, "user_email", user.Email, "user_role", user.Role)
+				args = append(args, "user_id", user.ID, "user_role", user.Role)
 			}
 
 			s.logger.Info("request completed", args...)
@@ -60,11 +59,7 @@ func (s *Server) accessLogMiddleware(channel string) func(http.Handler) http.Han
 
 			details := map[string]any{
 				"channel": channel,
-				"query":   r.URL.RawQuery,
 				"bytes":   writer.BytesWritten(),
-			}
-			if referer := strings.TrimSpace(r.Referer()); referer != "" {
-				details["referer"] = referer
 			}
 			_ = s.audit.LogHTTPAccess(r.Context(), audit.HTTPAccessEvent{
 				Request:      r,
