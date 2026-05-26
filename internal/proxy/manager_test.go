@@ -204,12 +204,22 @@ func TestManagerServesBootstrapAdminHosts(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/login", nil)
 	req.Host = "127.0.0.1"
+	req.RemoteAddr = "127.0.0.1:54321"
 	recorder := httptest.NewRecorder()
 
 	manager.Handler().ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("expected bootstrap admin host to be served by admin UI, got %d", recorder.Code)
+	}
+
+	remoteReq := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/login", nil)
+	remoteReq.Host = "127.0.0.1"
+	remoteReq.RemoteAddr = "203.0.113.42:54321"
+	remoteRecorder := httptest.NewRecorder()
+	manager.Handler().ServeHTTP(remoteRecorder, remoteReq)
+	if remoteRecorder.Code == http.StatusNoContent {
+		t.Fatal("bootstrap admin host must not be served to non-local request sources")
 	}
 }
 

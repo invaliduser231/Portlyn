@@ -768,8 +768,10 @@ func (s *Service) RevokeAllUserSessions(ctx context.Context, userID uint) error 
 	return nil
 }
 
+const PasswordHashCost = 12
+
 func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), PasswordHashCost)
 	return string(hash), err
 }
 

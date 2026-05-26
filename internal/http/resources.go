@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	stdhttp "net/http"
 	"net/netip"
 	"net/url"
@@ -215,7 +216,10 @@ func (s *Server) handleHeartbeatNode(w stdhttp.ResponseWriter, r *stdhttp.Reques
 
 func (s *Server) authorizeNodeHeartbeat(r *stdhttp.Request, node *domain.Node) bool {
 	if strings.EqualFold(strings.TrimSpace(node.HeartbeatAuthMode), "mtls") {
-		return verifyNodeMTLS(r, node.MTLSCertSHA256, s.cfg.NodeAllowMTLSHeaderFallback && s.cfg.NodeTrustForwardedProto)
+		headerFallback := s.cfg.NodeAllowMTLSHeaderFallback &&
+			s.cfg.NodeTrustForwardedProto &&
+			s.requestFromTrustedProxy(r)
+		return verifyNodeMTLS(r, node.MTLSCertSHA256, headerFallback)
 	}
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(authHeader, "Bearer ") {
@@ -861,8 +865,66 @@ func (s *Server) handleUpdateService(w stdhttp.ResponseWriter, r *stdhttp.Reques
 	writeJSON(w, stdhttp.StatusOK, serviceResponse(*deployed, s.evaluateServiceHealth(r.Context(), *deployed)))
 }
 
-var blockedHealthProbeHosts = map[string]struct{}{
-	"169.254.169.254": {},
+var blockedTargetHostNames = map[string]struct{}{
+	"metadata.google.internal":   {},
+	"metadata":                   {},
+	"metadata.goog":              {},
+	"instance-data":              {},
+	"instance-data.ec2.internal": {},
+}
+
+var blockedTargetCIDRs = func() []netip.Prefix {
+	raw := []string{
+		"169.254.0.0/16",
+		"fe80::/10",
+		"fd00:ec2::/32",
+		"224.0.0.0/4",
+		"ff00::/8",
+		"255.255.255.255/32",
+		"0.0.0.0/8",
+		"::/128",
+	}
+	out := make([]netip.Prefix, 0, len(raw))
+	for _, r := range raw {
+		if p, err := netip.ParsePrefix(r); err == nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}()
+
+var targetHostResolver func(host string) ([]netip.Addr, error)
+
+func resolveTargetHost(host string) ([]netip.Addr, error) {
+	if targetHostResolver != nil {
+		return targetHostResolver(host)
+	}
+	ips, err := net.DefaultResolver.LookupIP(context.Background(), "ip", host)
+	if err != nil {
+		return nil, err
+	}
+	addrs := make([]netip.Addr, 0, len(ips))
+	for _, ip := range ips {
+		if a, ok := netip.AddrFromSlice(ip); ok {
+			addrs = append(addrs, a.Unmap())
+		}
+	}
+	return addrs, nil
+}
+
+func addrBlocked(addr netip.Addr) bool {
+	if !addr.IsValid() {
+		return true
+	}
+	if addr.IsUnspecified() || addr.IsMulticast() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() || addr.IsInterfaceLocalMulticast() {
+		return true
+	}
+	for _, prefix := range blockedTargetCIDRs {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateServiceTargetURL(raw string) error {
@@ -877,11 +939,27 @@ func validateServiceTargetURL(raw string) error {
 	if host == "" {
 		return fmt.Errorf("target_url host must not be empty")
 	}
-	if _, blocked := blockedHealthProbeHosts[host]; blocked {
+	if _, blocked := blockedTargetHostNames[host]; blocked {
 		return fmt.Errorf("target_url host is blocked for security reasons")
 	}
-	if ip, err := netip.ParseAddr(host); err == nil && ip.IsLinkLocalUnicast() {
-		return fmt.Errorf("target_url host is blocked for security reasons")
+
+	if addr, err := netip.ParseAddr(host); err == nil {
+		if addrBlocked(addr) {
+			return fmt.Errorf("target_url host is blocked for security reasons")
+		}
+		return nil
+	}
+
+	// Hostname: resolve and check every returned address so a hostname
+	// cannot mask a metadata/link-local/multicast target.
+	addrs, err := resolveTargetHost(host)
+	if err != nil {
+		return nil
+	}
+	for _, addr := range addrs {
+		if addrBlocked(addr) {
+			return fmt.Errorf("target_url host resolves to a blocked address")
+		}
 	}
 	return nil
 }

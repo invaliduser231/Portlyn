@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -307,7 +308,7 @@ func (m *Manager) Handler() http.Handler {
 		host := normalizeHost(r.Host)
 		path := normalizePath(r.URL.Path)
 
-		if m.isAdminHost(host) {
+		if m.allowAdminHost(host, r) {
 			if m.handleAdminHost(writer, r, path) {
 				outcome = "admin"
 				reason = "admin_host"
@@ -415,6 +416,17 @@ func (m *Manager) isAdminHost(host string) bool {
 		return true
 	}
 	return m.bootstrapAdminEnabled && isBootstrapAdminHost(normalized)
+}
+
+func (m *Manager) allowAdminHost(host string, r *http.Request) bool {
+	normalized := normalizeHost(host)
+	if m.adminHost != "" && normalized == m.adminHost {
+		return true
+	}
+	if !m.bootstrapAdminEnabled || !isBootstrapAdminHost(normalized) {
+		return false
+	}
+	return isLocalRequestSource(r)
 }
 
 func (m *Manager) handleAdminHost(w http.ResponseWriter, r *http.Request, path string) bool {
@@ -777,7 +789,7 @@ func (m *Manager) redirectToRouteForbidden(w http.ResponseWriter, r *http.Reques
 }
 
 func (m *Manager) enforceNetworkRules(w http.ResponseWriter, r *http.Request, route Route) bool {
-	clientIP, err := parseClientIP(r.RemoteAddr)
+	clientIP, err := m.realClientIP(r)
 	if err != nil {
 		writeProxyError(w, http.StatusForbidden, "forbidden", "unable to determine client ip")
 		return false
@@ -939,10 +951,33 @@ func parseClientIP(remoteAddr string) (netip.Addr, error) {
 	return netip.ParseAddr(remoteAddr)
 }
 
+func (m *Manager) realClientIP(r *http.Request) (netip.Addr, error) {
+	if m.requestFromTrustedProxy(r) {
+		if forwarded := firstForwardedValue(r.Header.Get("X-Forwarded-For")); forwarded != "" {
+			if addr, err := netip.ParseAddr(strings.TrimSpace(forwarded)); err == nil {
+				return addr, nil
+			}
+		}
+		if realIP := strings.TrimSpace(r.Header.Get("X-Real-Ip")); realIP != "" {
+			if addr, err := netip.ParseAddr(realIP); err == nil {
+				return addr, nil
+			}
+		}
+	}
+	return parseClientIP(r.RemoteAddr)
+}
+
 func writeProxyError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_, _ = w.Write([]byte(fmt.Sprintf(`{"error":{"code":"%s","message":"%s","status":%d}}`, code, message, status)))
+	payload := map[string]any{
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+			"status":  status,
+		},
+	}
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 func (m *Manager) isTargetDegraded(target string) (bool, string) {
@@ -1085,6 +1120,24 @@ func isBootstrapAdminHost(host string) bool {
 		return true
 	}
 	if _, err := netip.ParseAddr(host); err == nil {
+		return true
+	}
+	return false
+}
+
+func isLocalRequestSource(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err != nil {
+		host = strings.TrimSpace(r.RemoteAddr)
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return false
+	}
+	if addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() {
 		return true
 	}
 	return false
