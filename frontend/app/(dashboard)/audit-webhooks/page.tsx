@@ -181,7 +181,7 @@ export default function AuditWebhooksPage() {
                     <Table.Td>{hook.event_types.length > 0 ? hook.event_types.join(", ") : "all"}</Table.Td>
                     <Table.Td>{formatDateTime(hook.last_fired_at)}</Table.Td>
                     <Table.Td>
-                      <Badge color={hook.active ? "success" : "gray"} variant="light">{hook.active ? "active" : "paused"}</Badge>
+                      <Badge color={hook.active ? "success" : "gray"}>{hook.active ? "active" : "paused"}</Badge>
                       {hook.last_status > 0 ? <Text size="xs" c="dimmed">{hook.last_status} {hook.last_error}</Text> : null}
                     </Table.Td>
                     <Table.Td>

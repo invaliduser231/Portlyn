@@ -61,7 +61,7 @@ export function CertificateTable({
               <Table.Td>
                 {sans.length > 0 ? (
                   <Stack gap={4}>
-                    <Badge size="sm" variant="light" color="gray">{sans.length} SANs</Badge>
+                    <Badge size="sm" color="gray">{sans.length} SANs</Badge>
                     <Text size="xs" c="dimmed">{sans.slice(0, 3).map((item) => item.domain_name).join(", ")}{sans.length > 3 ? " ..." : ""}</Text>
                   </Stack>
                 ) : "0"}

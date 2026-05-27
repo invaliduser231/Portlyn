@@ -301,7 +301,7 @@ export default function NodesPage() {
                       {connectedNode ? <Text size="sm">Connected node: {connectedNode.name}</Text> : null}
                     </div>
                     <Group gap="xs">
-                      {!connectedNode ? <Loader size="sm" color="brand" /> : <Badge color="success" variant="light">connected</Badge>}
+                      {!connectedNode ? <Loader size="sm" color="brand" /> : <Badge color="success">connected</Badge>}
                       <Button size="xs" variant="subtle" leftSection={<IconRefresh size={14} />} onClick={() => void refreshInstallStatus()}>
                         Refresh
                       </Button>

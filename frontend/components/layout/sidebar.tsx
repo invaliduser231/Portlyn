@@ -53,7 +53,7 @@ export function Sidebar() {
       h="100%"
       p={18}
       style={{
-        background: "linear-gradient(180deg, rgba(26,27,30,0.98) 0%, rgba(18,19,22,0.98) 100%)",
+        background: "linear-gradient(180deg, #1e1f25 0%, #16171c 100%)",
         borderRight: "1px solid rgba(255,255,255,0.04)"
       }}
     >
@@ -88,7 +88,7 @@ export function Sidebar() {
                   leftSection={<Icon size={16} stroke={1.8} />}
                   rightSection={
                     item.href === "/audit-logs" ? (
-                      <Badge size="xs" variant="light" color="gray">
+                      <Badge size="xs" color="gray">
                         Admin
                       </Badge>
                     ) : null
@@ -99,7 +99,7 @@ export function Sidebar() {
                       color: active ? "#f4f7fb" : "#9aa3b2"
                     },
                     section: {
-                      color: active ? "#ae90da" : "#707988"
+                      color: active ? "#9c79d0" : "#707988"
                     }
                   }}
                 />

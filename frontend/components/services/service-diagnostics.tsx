@@ -160,7 +160,7 @@ export function ServiceDiagnostics({ serviceId }: { serviceId: number | string }
                       <Text size="sm" fw={600}>{stepLabel(step.name)}</Text>
                       <Text size="sm" c="dimmed">{step.message}</Text>
                     </Stack>
-                    <Badge color={statusColor(step.status)} variant="light">{step.status}</Badge>
+                    <Badge color={statusColor(step.status)}>{step.status}</Badge>
                   </Group>
                 ))}
               </Stack>
@@ -206,7 +206,7 @@ export function ServiceDiagnostics({ serviceId }: { serviceId: number | string }
                       <Table.Td>{event.method || "-"}</Table.Td>
                       <Table.Td><Text size="xs" lineClamp={1}>{event.path || "-"}</Text></Table.Td>
                       <Table.Td><Text size="xs">{event.remote_addr || "-"}</Text></Table.Td>
-                      <Table.Td><Badge color="danger" variant="light">{event.status_code}</Badge></Table.Td>
+                      <Table.Td><Badge color="danger">{event.status_code}</Badge></Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>

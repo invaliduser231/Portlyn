@@ -74,7 +74,7 @@ export function NodeTunnelPanel({ node, onChange }: { node: Node; onChange: (upd
         <Group gap="xs">
           <IconBolt size={16} />
           <Text fw={600} size="sm">Tunnel</Text>
-          <Badge color={STATUS_COLOR[status] || "gray"} variant="light">{status}</Badge>
+          <Badge color={STATUS_COLOR[status] || "gray"}>{status}</Badge>
         </Group>
         {hasTunnel ? (
           <Group gap="xs">

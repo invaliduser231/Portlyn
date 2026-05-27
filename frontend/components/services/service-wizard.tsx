@@ -244,7 +244,7 @@ export function ServiceWizard({
                     <Text fw={600}>{selectedTemplate.name}</Text>
                     <Text size="sm">{selectedTemplate.description}</Text>
                   </Stack>
-                  <Badge variant="light">
+                  <Badge>
                     {templateAccessLabel(
                       selectedTemplate.recommendedAccessMode,
                       selectedTemplate.recommendedAccessMethod,
@@ -439,7 +439,7 @@ function TemplateCard({
           <Stack gap={2}>
             <Group gap="xs">
               <Text fw={600}>{template.name}</Text>
-              <Badge variant="light" size="sm">{categoryLabels[template.category]}</Badge>
+              <Badge size="sm">{categoryLabels[template.category]}</Badge>
             </Group>
             <Text size="sm" c="dimmed">{template.description}</Text>
           </Stack>

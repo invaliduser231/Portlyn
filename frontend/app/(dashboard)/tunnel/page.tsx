@@ -169,7 +169,7 @@ export default function TunnelPage() {
             <Stack gap="sm">
               <Group justify="space-between">
                 <Text fw={600}>Server public key</Text>
-                <Badge color="success" variant="light">{settings.configured_peer_count} peers</Badge>
+                <Badge color="success">{settings.configured_peer_count} peers</Badge>
               </Group>
               <Code block>{settings.server_public_key}</Code>
               <Text size="sm" c="dimmed">

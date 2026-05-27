@@ -128,7 +128,7 @@ function CheckRow({ label, pass, extra }: { label: string; pass: boolean; extra?
       <Text size="sm">{label}</Text>
       <Group gap="xs">
         {extra ? <Text size="xs" c="dimmed">{extra}</Text> : null}
-        <Badge color={pass ? "success" : "danger"} variant="light">{pass ? "OK" : "Missing"}</Badge>
+        <Badge color={pass ? "success" : "danger"}>{pass ? "OK" : "Missing"}</Badge>
       </Group>
     </Group>
   );

@@ -90,7 +90,7 @@ export function AuditLogTable({ items }: { items: AuditLog[] }) {
                   <Table.Td>{formatDateTime(item.timestamp)}</Table.Td>
                   <Table.Td>
                     {item.status_code ? (
-                      <Badge color={outcomeColor(detail.outcome, item.status_code)} variant="light">
+                      <Badge color={outcomeColor(detail.outcome, item.status_code)}>
                         {item.status_code}
                       </Badge>
                     ) : (
@@ -172,7 +172,7 @@ function AuditEventDetail({ item, detail }: { item: AuditLog; detail: ParsedDeta
         <Stack gap={2}>
           <Text size="xs" c="dimmed">Status</Text>
           {item.status_code ? (
-            <Badge color={outcomeColor(detail.outcome, item.status_code)} variant="light">
+            <Badge color={outcomeColor(detail.outcome, item.status_code)}>
               {item.status_code}
             </Badge>
           ) : (

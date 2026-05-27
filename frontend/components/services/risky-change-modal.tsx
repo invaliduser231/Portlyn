@@ -69,7 +69,7 @@ export function RiskyChangeModal({
                   <Table.Td><Code>{change.before}</Code></Table.Td>
                   <Table.Td><Code>{change.after}</Code></Table.Td>
                   <Table.Td>
-                    <Badge color={riskLevelColor(change.level)} variant="light">{change.level}</Badge>
+                    <Badge color={riskLevelColor(change.level)}>{change.level}</Badge>
                   </Table.Td>
                 </Table.Tr>
               ))}

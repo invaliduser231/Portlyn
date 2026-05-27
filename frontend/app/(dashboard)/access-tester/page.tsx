@@ -173,7 +173,7 @@ export default function AccessTesterPage() {
                         <Text size="sm" fw={600}>{stepLabel(step.name)}</Text>
                         <Text size="sm" c="dimmed">{step.message}</Text>
                       </Stack>
-                      <Badge color={statusColor(step.status)} variant="light">{step.status}</Badge>
+                      <Badge color={statusColor(step.status)}>{step.status}</Badge>
                     </Group>
                   ))}
                 </Stack>

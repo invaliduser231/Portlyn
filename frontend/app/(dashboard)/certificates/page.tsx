@@ -189,7 +189,7 @@ export default function CertificatesPage() {
                 <Text fw={700} fz="lg">{inspectedCertificate.primary_domain}</Text>
                 <Text size="sm" c="dimmed">{inspectedCertificate.domain?.name || `Domain #${inspectedCertificate.domain_id}`}</Text>
               </div>
-              <Badge color={inspectedCertificate.issuer === "letsencrypt_staging" ? "warning" : "brand"} variant="light">
+              <Badge color={inspectedCertificate.issuer === "letsencrypt_staging" ? "warning" : "brand"}>
                 {inspectedCertificate.issuer === "letsencrypt_staging" ? "Let's Encrypt Staging" : "Let's Encrypt Production"}
               </Badge>
             </Group>
@@ -235,7 +235,7 @@ export default function CertificatesPage() {
               {certificateSans.length > 0 ? (
                 <Group gap="xs">
                   {certificateSans.map((item) => (
-                    <Badge key={item.domain_name} variant="light" color="gray">{item.domain_name}</Badge>
+                    <Badge key={item.domain_name} color="gray">{item.domain_name}</Badge>
                   ))}
                 </Group>
               ) : (

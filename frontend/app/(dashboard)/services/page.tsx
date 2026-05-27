@@ -174,18 +174,18 @@ export default function ServicesPage() {
                           {serviceHostname(service)}{service.path}
                         </Text>
                       </div>
-                      <Badge variant="light" color="gray">
+                      <Badge color="gray">
                         {service.effective_access_mode || service.access_mode}
                       </Badge>
                     </Group>
                   </div>
 
                   <Group gap="xs">
-                    <Badge variant="light" color="brand">
+                    <Badge color="brand">
                       {accessMethodLabel(service.effective_access_method || service.access_method)}
                     </Badge>
                     {service.inherited_from_group && !service.service_overrides_group ? (
-                      <Badge variant="light" color="gray">
+                      <Badge color="gray">
                         {service.inherited_from_group.name}
                       </Badge>
                     ) : null}

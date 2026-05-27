@@ -112,7 +112,7 @@ const theme = createTheme({
     AppShell: {
       styles: {
         main: {
-          background: "#121316"
+          background: "#17181d"
         }
       }
     },
@@ -123,8 +123,8 @@ const theme = createTheme({
       },
       styles: {
         root: {
-          backgroundColor: "#1f1f23",
-          boxShadow: "0 18px 40px -28px rgba(0, 0, 0, 0.9)"
+          backgroundColor: "#23242b",
+          boxShadow: "0 14px 36px -28px rgba(0, 0, 0, 0.7)"
         }
       }
     },
@@ -135,8 +135,8 @@ const theme = createTheme({
       },
       styles: {
         root: {
-          backgroundColor: "#1f1f23",
-          boxShadow: "0 18px 40px -28px rgba(0, 0, 0, 0.9)"
+          backgroundColor: "#23242b",
+          boxShadow: "0 14px 36px -28px rgba(0, 0, 0, 0.7)"
         }
       }
     },
@@ -191,12 +191,13 @@ const theme = createTheme({
     },
     Avatar: {
       defaultProps: {
-        color: "brand.4",
-        variant: "light"
+        color: "brand.5",
+        variant: "filled"
       },
       styles: {
         placeholder: {
-          fontWeight: 600
+          fontWeight: 600,
+          color: "#ffffff"
         }
       }
     },
@@ -224,7 +225,7 @@ const theme = createTheme({
     Badge: {
       defaultProps: {
         radius: "sm",
-        variant: "light"
+        variant: "filled"
       },
       styles: {
         root: {
@@ -237,7 +238,7 @@ const theme = createTheme({
     Modal: {
       styles: {
         content: {
-          backgroundColor: "#292a2d",
+          backgroundColor: "#2c2d35",
           boxShadow: "0 24px 60px -30px rgba(0, 0, 0, 0.85)"
         },
         header: {

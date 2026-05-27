@@ -129,7 +129,7 @@ export default function PasskeysPage() {
                   <Table.Td>{formatDateTime(cred.created_at)}</Table.Td>
                   <Table.Td>{formatDateTime(cred.last_used_at)}</Table.Td>
                   <Table.Td>
-                    <Badge color={cred.user_verified ? "success" : "gray"} variant="light">
+                    <Badge color={cred.user_verified ? "success" : "gray"}>
                       {cred.user_verified ? "User verified" : "Unverified"}
                     </Badge>
                   </Table.Td>
