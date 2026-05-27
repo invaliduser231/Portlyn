@@ -39,7 +39,7 @@ export function UserTable({
           {users.map((user) => (
             <Table.Tr key={user.id}>
               <Table.Td>
-                <Text component={Link} href={`/users/${user.id}`} fw={500}>{user.email}</Text>
+                <Text component={Link} href={`/users/detail?id=${user.id}`} fw={500}>{user.email}</Text>
                 {user.id === currentUserId ? <Text c="#7e8795" size="xs">Current session</Text> : null}
               </Table.Td>
               <Table.Td>

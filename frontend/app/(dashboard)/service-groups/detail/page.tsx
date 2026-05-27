@@ -2,8 +2,8 @@
 
 import { Button, Group as MantineGroup, Paper, Select, Skeleton, Stack, Table, Text, TextInput, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { AccessPolicyFields } from "@/components/access-policy-fields";
 import { AdminOnly } from "@/components/admin-only";
@@ -15,7 +15,7 @@ import { buildServiceGroupRequestPayload } from "@/lib/access-control";
 import { serviceHostname } from "@/lib/service-host";
 import type { Group as UserGroup, Service, ServiceGroup, ServiceGroupPayload } from "@/lib/types";
 
-export default function ServiceGroupDetailPage() {
+function ServiceGroupDetailContent() {
   const [item, setItem] = useState<ServiceGroup | null>(null);
   const [groups, setGroups] = useState<UserGroup[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -23,11 +23,11 @@ export default function ServiceGroupDetailPage() {
   const [allowedEmailsText, setAllowedEmailsText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const routeParams = useParams<{ id: string | string[] }>();
-  const serviceGroupID = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id;
+  const params = useSearchParams();
+  const serviceGroupId = params.get("id") || undefined;
 
   const loadData = async () => {
-    if (!serviceGroupID) {
+    if (!serviceGroupId) {
       setError("Missing service group ID.");
       setIsLoading(false);
       return;
@@ -36,7 +36,7 @@ export default function ServiceGroupDetailPage() {
     setError(null);
     try {
       const [serviceGroup, groupItems, serviceItems] = await Promise.all([
-        apiFetch<ServiceGroup>(`/api/v1/service-groups/${serviceGroupID}`),
+        apiFetch<ServiceGroup>(`/api/v1/service-groups/${serviceGroupId}`),
         apiFetch<UserGroup[]>("/api/v1/groups"),
         apiFetch<Service[]>("/api/v1/services")
       ]);
@@ -53,7 +53,7 @@ export default function ServiceGroupDetailPage() {
 
   useEffect(() => {
     void loadData();
-  }, [serviceGroupID]);
+  }, [serviceGroupId]);
 
   const availableServices = useMemo(() => {
     const selectedIds = new Set(item?.services?.map((service) => service.id) || []);
@@ -88,9 +88,9 @@ export default function ServiceGroupDetailPage() {
   };
 
   const handleAdd = async () => {
-    if (!selectedServiceId || !serviceGroupID) return;
+    if (!selectedServiceId || !serviceGroupId) return;
     try {
-      const updated = await apiFetch<ServiceGroup>(`/api/v1/service-groups/${serviceGroupID}/services`, {
+      const updated = await apiFetch<ServiceGroup>(`/api/v1/service-groups/${serviceGroupId}/services`, {
         method: "POST",
         body: JSON.stringify({ service_id: Number(selectedServiceId) })
       });
@@ -103,9 +103,9 @@ export default function ServiceGroupDetailPage() {
   };
 
   const handleRemove = async (serviceId: number) => {
-    if (!serviceGroupID) return;
+    if (!serviceGroupId) return;
     try {
-      await apiFetch<void>(`/api/v1/service-groups/${serviceGroupID}/services/${serviceId}`, { method: "DELETE" });
+      await apiFetch<void>(`/api/v1/service-groups/${serviceGroupId}/services/${serviceId}`, { method: "DELETE" });
       await loadData();
       notifications.show({ color: "green", message: "Service removed" });
     } catch (err) {
@@ -253,5 +253,13 @@ export default function ServiceGroupDetailPage() {
         )}
       </Stack>
     </AdminOnly>
+  );
+}
+
+export default function ServiceGroupDetailPage() {
+  return (
+    <Suspense fallback={<Skeleton height={200} />}>
+      <ServiceGroupDetailContent />
+    </Suspense>
   );
 }

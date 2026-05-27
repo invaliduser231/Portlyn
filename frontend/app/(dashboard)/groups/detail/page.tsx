@@ -2,7 +2,8 @@
 
 import { Button, Group as MantineGroup, Paper, Select, Skeleton, Stack, Table, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AdminOnly } from "@/components/admin-only";
@@ -11,14 +12,14 @@ import { ErrorState } from "@/components/error-state";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Group as UserGroup, User } from "@/lib/types";
 
-export default function GroupDetailPage() {
+function GroupDetailContent() {
   const [group, setGroup] = useState<UserGroup | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const routeParams = useParams<{ id: string | string[] }>();
-  const groupId = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id;
+  const params = useSearchParams();
+  const groupId = params.get("id") || undefined;
 
   const loadData = async () => {
     if (!groupId) {
@@ -147,5 +148,13 @@ export default function GroupDetailPage() {
         )}
       </Stack>
     </AdminOnly>
+  );
+}
+
+export default function GroupDetailPage() {
+  return (
+    <Suspense fallback={<Skeleton height={200} />}>
+      <GroupDetailContent />
+    </Suspense>
   );
 }

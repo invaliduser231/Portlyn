@@ -168,7 +168,7 @@ export default function ServiceGroupsPage() {
                   {items.map((item) => (
                     <Table.Tr key={item.id}>
                       <Table.Td>
-                        <Text component={Link} href={`/service-groups/${item.id}`} fw={600}>
+                        <Text component={Link} href={`/service-groups/detail?id=${item.id}`} fw={600}>
                           {item.name}
                         </Text>
                       </Table.Td>

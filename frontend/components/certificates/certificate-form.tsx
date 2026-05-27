@@ -63,11 +63,11 @@ export function CertificateForm({
         data={domains.map((domain) => ({ value: String(domain.id), label: domain.name }))}
         value={String(values.domain_id)}
         onChange={(value) => {
-          const nextDomainID = Number(value || 0);
+          const nextDomainId = Number(value || 0);
           setValues({
             ...values,
-            domain_id: nextDomainID,
-            primary_domain: domainLookup.get(nextDomainID) || values.primary_domain
+            domain_id: nextDomainId,
+            primary_domain: domainLookup.get(nextDomainId) || values.primary_domain
           });
         }}
       />

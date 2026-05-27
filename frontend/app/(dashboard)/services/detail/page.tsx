@@ -2,8 +2,8 @@
 
 import { Alert, Button, Card, Grid, Group, Loader, Paper, SimpleGrid, Stack, Tabs, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ErrorState } from "@/components/error-state";
@@ -19,7 +19,7 @@ import { formatDateTime } from "@/lib/format";
 import { serviceHostname } from "@/lib/service-host";
 import type { Domain, Group as UserGroup, Service, ServiceGroup, ServicePayload } from "@/lib/types";
 
-export default function ServiceDetailPage() {
+function ServiceDetailContent() {
   const [service, setService] = useState<Service | null>(null);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [groups, setGroups] = useState<UserGroup[]>([]);
@@ -29,8 +29,8 @@ export default function ServiceDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const routeParams = useParams<{ id: string | string[] }>();
-  const serviceId = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id;
+  const params = useSearchParams();
+  const serviceId = params.get("id") || undefined;
   const router = useRouter();
   const { user } = useAuth();
   const canManage = user?.role === "admin";
@@ -324,5 +324,13 @@ export default function ServiceDetailPage() {
         isLoading={isDeleting}
       />
     </Stack>
+  );
+}
+
+export default function ServiceDetailPage() {
+  return (
+    <Suspense fallback={<Stack align="center" py="xl"><Loader color="brand" /></Stack>}>
+      <ServiceDetailContent />
+    </Suspense>
   );
 }
