@@ -37,7 +37,7 @@ export function ServiceTable({
           {services.map((service) => (
             <Table.Tr key={service.id}>
               <Table.Td>
-                <Anchor component={Link} href={`/services/${service.id}`}>
+                <Anchor component={Link} href={`/services/detail?id=${service.id}`}>
                   {service.name}
                 </Anchor>
                 <Text c="dimmed" size="xs">
@@ -73,7 +73,7 @@ export function ServiceTable({
               </Table.Td>
               <Table.Td>
                 <Group justify="flex-end" gap="xs">
-                  <ActionIcon component={Link} href={`/services/${service.id}`} variant="subtle" color="gray">
+                  <ActionIcon component={Link} href={`/services/detail?id=${service.id}`} variant="subtle" color="gray">
                     <IconChevronRight size={16} />
                   </ActionIcon>
                   {canManage ? (

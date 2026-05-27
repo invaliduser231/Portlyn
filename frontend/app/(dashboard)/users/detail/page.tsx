@@ -1,8 +1,8 @@
 "use client";
 
 import { Button, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { ErrorState } from "@/components/error-state";
 import { StatusBadge } from "@/components/status-badge";
@@ -10,13 +10,13 @@ import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import type { SessionInfo, User } from "@/lib/types";
 
-export default function UserDetailPage() {
+function UserDetailContent() {
   const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const routeParams = useParams<{ id: string | string[] }>();
-  const userId = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id;
+  const params = useSearchParams();
+  const userId = params.get("id") || undefined;
 
   const load = async () => {
     if (!userId) {
@@ -139,5 +139,13 @@ export default function UserDetailPage() {
         </Stack>
       </Card>
     </Stack>
+  );
+}
+
+export default function UserDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <UserDetailContent />
+    </Suspense>
   );
 }

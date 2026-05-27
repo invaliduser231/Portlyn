@@ -116,7 +116,7 @@ export default function GroupsPage() {
                   {groups.map((group) => (
                     <Table.Tr key={group.id}>
                       <Table.Td>
-                        <Text component={Link} href={`/groups/${group.id}`} fw={600}>
+                        <Text component={Link} href={`/groups/detail?id=${group.id}`} fw={600}>
                           {group.name}
                         </Text>
                       </Table.Td>
