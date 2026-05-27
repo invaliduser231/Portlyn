@@ -1,15 +1,23 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import type { ReactNode } from "react";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { useAuth } from "@/components/providers";
 
-export default async function ProtectedLayout({ children }: { children: ReactNode }) {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("portlyn_session")?.value;
+export default function ProtectedLayout({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  if (!sessionToken) {
-    redirect("/login");
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  if (isLoading || !isAuthenticated) {
+    return null;
   }
 
   return <DashboardShell>{children}</DashboardShell>;
