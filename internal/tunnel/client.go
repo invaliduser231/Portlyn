@@ -13,6 +13,14 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 )
 
+func resolveEndpoint(endpoint string) (string, error) {
+	udp, err := net.ResolveUDPAddr("udp", endpoint)
+	if err != nil {
+		return "", err
+	}
+	return udp.String(), nil
+}
+
 type ClientOptions struct {
 	PrivateKey      string
 	ServerPublicKey string
@@ -71,6 +79,10 @@ func (c *Client) Start(ctx context.Context) error {
 	if endpoint == "" {
 		return fmt.Errorf("tunnel client: server endpoint missing")
 	}
+	resolved, err := resolveEndpoint(endpoint)
+	if err != nil {
+		return fmt.Errorf("tunnel client: resolve endpoint %q: %w", endpoint, err)
+	}
 
 	tunDevice, netStack, err := CreateNetStack([]netip.Addr{c.tunnelIP}, c.options.MTU)
 	if err != nil {
@@ -94,7 +106,7 @@ func (c *Client) Start(ctx context.Context) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "private_key=%s\n", privHex)
 	fmt.Fprintf(&b, "public_key=%s\n", pubHex)
-	fmt.Fprintf(&b, "endpoint=%s\n", endpoint)
+	fmt.Fprintf(&b, "endpoint=%s\n", resolved)
 	fmt.Fprintf(&b, "persistent_keepalive_interval=%d\n", c.options.Keepalive)
 	allowed := c.options.AllowedIPs
 	if len(allowed) == 0 {

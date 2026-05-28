@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Group,
+  Input,
   Paper,
   ScrollArea,
   SegmentedControl,
@@ -258,7 +259,6 @@ export function ServiceWizard({
               <Stack gap="sm">
                 <TextInput
                   label="Service name"
-                  description="Shown in the dashboard and audit log."
                   value={basics.name}
                   onChange={(event) =>
                     setBasics((current) => ({ ...current, name: event.currentTarget.value }))
@@ -266,17 +266,6 @@ export function ServiceWizard({
                   required
                 />
                 <Group grow>
-                  <Select
-                    label="Root domain"
-                    description="Pick a domain you already added under Domains."
-                    data={domains.map((domain) => ({ value: String(domain.id), label: domain.name }))}
-                    value={basics.domainId ? String(basics.domainId) : null}
-                    onChange={(value) =>
-                      setBasics((current) => ({ ...current, domainId: Number(value || 0) }))
-                    }
-                    disabled={domains.length === 0}
-                    required
-                  />
                   <TextInput
                     label="Subdomain (optional)"
                     placeholder="e.g. grafana"
@@ -284,6 +273,16 @@ export function ServiceWizard({
                     onChange={(event) =>
                       setBasics((current) => ({ ...current, subdomain: event.currentTarget.value }))
                     }
+                  />
+                  <Select
+                    label="Root domain"
+                    data={domains.map((domain) => ({ value: String(domain.id), label: domain.name }))}
+                    value={basics.domainId ? String(basics.domainId) : null}
+                    onChange={(value) =>
+                      setBasics((current) => ({ ...current, domainId: Number(value || 0) }))
+                    }
+                    disabled={domains.length === 0}
+                    required
                   />
                 </Group>
                 {previewHostname ? (
@@ -296,21 +295,23 @@ export function ServiceWizard({
 
             <Paper withBorder radius="md" p="md">
               <Stack gap="sm">
-                <Text fw={600}>Upstream</Text>
-                <Group grow>
-                  <SegmentedControl
-                    data={[
-                      { value: "http", label: "http" },
-                      { value: "https", label: "https" },
-                    ]}
-                    value={basics.upstreamProtocol}
-                    onChange={(value) =>
-                      setBasics((current) => ({
-                        ...current,
-                        upstreamProtocol: value as "http" | "https",
-                      }))
-                    }
-                  />
+                <Group grow align="flex-end">
+                  <Input.Wrapper label="Upstream">
+                    <SegmentedControl
+                      fullWidth
+                      data={[
+                        { value: "http", label: "http" },
+                        { value: "https", label: "https" },
+                      ]}
+                      value={basics.upstreamProtocol}
+                      onChange={(value) =>
+                        setBasics((current) => ({
+                          ...current,
+                          upstreamProtocol: value as "http" | "https",
+                        }))
+                      }
+                    />
+                  </Input.Wrapper>
                   <TextInput
                     label="Host or IP"
                     placeholder="e.g. gitea or 10.0.0.5"
