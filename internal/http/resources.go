@@ -634,11 +634,31 @@ func (s *Server) evaluateServiceHealth(ctx context.Context, item domain.Service)
 		}
 	}
 
+	probeURL := item.TargetURL
+	client := &stdhttp.Client{Timeout: 1500 * time.Millisecond}
+	if item.NodeID != nil && item.Node != nil && s.tunnel != nil {
+		tunnelIP := strings.TrimSpace(item.Node.WGTunnelIP)
+		if srv := s.tunnel.Server(); tunnelIP != "" && srv != nil && srv.Started() {
+			if u, parseErr := url.Parse(item.TargetURL); parseErr == nil && u.Host != "" {
+				if port := u.Port(); port != "" {
+					u.Host = tunnelIP + ":" + port
+				} else {
+					u.Host = tunnelIP
+				}
+				probeURL = u.String()
+			}
+			client = &stdhttp.Client{
+				Timeout:   1500 * time.Millisecond,
+				Transport: &stdhttp.Transport{DialContext: srv.DialContext},
+			}
+		}
+	}
+
 	probeCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer cancel()
-	err := probeHTTPHealthTarget(probeCtx, &stdhttp.Client{Timeout: 1500 * time.Millisecond}, HTTPHealthTarget{
+	err := probeHTTPHealthTarget(probeCtx, client, HTTPHealthTarget{
 		Name: item.Name,
-		URL:  item.TargetURL,
+		URL:  probeURL,
 	})
 	if err != nil {
 		return serviceHealthInfo{
