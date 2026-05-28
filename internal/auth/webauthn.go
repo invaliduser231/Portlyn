@@ -115,6 +115,11 @@ func (u *webauthnUser) WebAuthnCredentials() []webauthn.Credential {
 		out = append(out, webauthn.Credential{
 			ID:        credID,
 			PublicKey: pubKey,
+			Flags: webauthn.CredentialFlags{
+				UserVerified:   c.UserVerified,
+				BackupEligible: c.BackupEligible,
+				BackupState:    c.BackupState,
+			},
 			Authenticator: webauthn.Authenticator{
 				SignCount: c.SignCount,
 			},
@@ -186,6 +191,8 @@ func (w *WebAuthnService) FinishRegistration(ctx context.Context, sessionID, lab
 		SignCount:       credential.Authenticator.SignCount,
 		Label:           strings.TrimSpace(label),
 		UserVerified:    credential.Flags.UserVerified,
+		BackupEligible:  credential.Flags.BackupEligible,
+		BackupState:     credential.Flags.BackupState,
 	}
 	if err := w.credentials.Create(ctx, item); err != nil {
 		return nil, err
@@ -259,6 +266,7 @@ func (w *WebAuthnService) FinishLogin(ctx context.Context, sessionID string, res
 	}
 	now := time.Now().UTC()
 	stored.SignCount = credential.Authenticator.SignCount
+	stored.BackupState = credential.Flags.BackupState
 	stored.LastUsedAt = &now
 	if err := w.credentials.Update(ctx, stored); err != nil {
 		return 0, err

@@ -460,6 +460,8 @@ type UserCredential struct {
 	Transports      JSONStringSlice `gorm:"type:text;not null;default:'[]'" json:"transports"`
 	Label           string          `gorm:"size:255" json:"label"`
 	UserVerified    bool            `gorm:"not null;default:false" json:"user_verified"`
+	BackupEligible  bool            `gorm:"not null;default:false" json:"backup_eligible"`
+	BackupState     bool            `gorm:"not null;default:false" json:"backup_state"`
 	CreatedAt       time.Time       `json:"created_at"`
 	LastUsedAt      *time.Time      `json:"last_used_at"`
 }
