@@ -63,7 +63,7 @@ func (s *Server) handleCreateNodeEnrollmentToken(w stdhttp.ResponseWriter, r *st
 		"expires_at":    item.ExpiresAt,
 		"created_at":    item.CreatedAt,
 		"token":         plainToken,
-		"setup_command": "nodeagent --token " + plainToken + " --name <node-name> --api " + setupAPIBase,
+		"setup_command": "curl -fsSL " + setupAPIBase + "/install.sh | sudo sh -s -- --token " + plainToken,
 	})
 }
 
@@ -98,6 +98,17 @@ func (s *Server) handleEnrollNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 		writeError(w, stdhttp.StatusUnauthorized, "invalid_enrollment_token", "invalid or expired enrollment token")
 		return
 	}
+	if token.SingleUse {
+		claimed, claimErr := s.enrollmentTokens.ClaimSingleUse(r.Context(), token.ID, now)
+		if claimErr != nil {
+			s.internalError(w, claimErr)
+			return
+		}
+		if !claimed {
+			writeError(w, stdhttp.StatusUnauthorized, "invalid_enrollment_token", "invalid or expired enrollment token")
+			return
+		}
+	}
 	heartbeatToken, err := randomEnrollmentToken()
 	if err != nil {
 		s.internalError(w, err)
@@ -125,15 +136,6 @@ func (s *Server) handleEnrollNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 	if err := s.nodes.Update(r.Context(), node); err != nil {
 		s.internalError(w, err)
 		return
-	}
-	if token.SingleUse {
-		token.Active = false
-		usedAt := now
-		token.UsedAt = &usedAt
-		if err := s.enrollmentTokens.Update(r.Context(), token); err != nil {
-			s.internalError(w, err)
-			return
-		}
 	}
 	_ = s.audit.LogRequest(r.Context(), r, nil, "enroll", "node", &node.ID, map[string]any{"node_id": node.ID, "enrollment_token_id": token.ID})
 	writeJSON(w, stdhttp.StatusCreated, map[string]any{

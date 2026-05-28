@@ -65,19 +65,27 @@ function buildNodeCommands(apiBaseUrl: string, token: string, nodeName: string, 
     nodeDescription.trim() ? `--description ${shellEscape(nodeDescription)}` : "",
     `--version ${shellEscape("docker-node")}`,
   ].filter(Boolean).join(" ");
+  const installArgs = [
+    `--token ${shellEscape(token)}`,
+    nodeName.trim() && nodeName !== "<node-name>" ? `--name ${shellEscape(nodeName)}` : "",
+  ].filter(Boolean).join(" ");
+  const oneLiner = `curl -fsSL ${shellEscape(`${apiBaseUrl}/install.sh`)} | sudo sh -s -- ${installArgs}`;
 
   return {
     linux: {
+      oneLiner,
       binary: `chmod +x ./portlyn-nodeagent-linux-amd64\n./portlyn-nodeagent-linux-amd64 ${shArgs("linux-node")}`,
       goInstall: `go install portlyn/cmd/nodeagent@latest\nnodeagent ${shArgs("linux-node")}`,
       docker: `docker run -d --restart unless-stopped --name portlyn-nodeagent \\\n  -v portlyn-nodeagent:/data \\\n  ${dockerImage} ${dockerArgs}`
     },
     macos: {
+      oneLiner,
       binary: `chmod +x ./portlyn-nodeagent-darwin-arm64\n./portlyn-nodeagent-darwin-arm64 ${shArgs("macos-node")}`,
       goInstall: `go install portlyn/cmd/nodeagent@latest\nnodeagent ${shArgs("macos-node")}`,
       docker: `docker run -d --restart unless-stopped --name portlyn-nodeagent \\\n  -v portlyn-nodeagent:/data \\\n  ${dockerImage} ${dockerArgs}`
     },
     windows: {
+      oneLiner: "",
       binary: `.\\portlyn-nodeagent-windows-amd64.exe ${winArgs}`,
       goInstall: `go install portlyn/cmd/nodeagent@latest\nnodeagent ${winArgs}`,
       docker: `docker run -d --restart unless-stopped --name portlyn-nodeagent ` +
@@ -417,6 +425,22 @@ export default function NodesPage() {
                   </Tabs.List>
                 </Tabs>
                 <Divider />
+                {currentCommand?.oneLiner ? (
+                  <Stack gap="xs">
+                    <Group justify="space-between" align="center">
+                      <Text fw={600}>One-line install (recommended)</Text>
+                      <CopyButton value={currentCommand.oneLiner}>
+                        {({ copied, copy }) => (
+                          <Button size="xs" variant="light" leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />} onClick={copy}>
+                            {copied ? "Copied" : "Copy"}
+                          </Button>
+                        )}
+                      </CopyButton>
+                    </Group>
+                    <Textarea value={currentCommand.oneLiner} readOnly autosize minRows={2} maxRows={6} styles={{ input: { fontFamily: "monospace" } }} />
+                    <Text size="xs" c="dimmed">Downloads the agent, installs a systemd service and starts it. Nothing else to set up.</Text>
+                  </Stack>
+                ) : null}
                 <Stack gap="xs">
                   <Group justify="space-between" align="center">
                     <Text fw={500}>Download binary</Text>

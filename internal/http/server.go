@@ -191,6 +191,7 @@ func (s *Server) Router() stdhttp.Handler {
 	r.Get("/livez", s.handleLivez)
 	r.Get("/readyz", s.handleReadyz)
 	r.Get("/healthz", s.handleHealthz)
+	r.Get("/install.sh", s.handleInstallScript)
 	r.Get("/metrics", func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		if s.metrics == nil {
 			writeErrorRequest(w, r, stdhttp.StatusNotFound, "metrics_disabled", "metrics are not configured")

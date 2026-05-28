@@ -216,6 +216,9 @@ func (s *Service) CompleteMFA(ctx context.Context, mfaToken, code string, meta R
 	if err != nil {
 		return nil, err
 	}
+	if !user.Active {
+		return nil, ErrInactiveUser
+	}
 	ok, remaining, err := s.verifyMFAFactor(user, code)
 	if err != nil {
 		return nil, err

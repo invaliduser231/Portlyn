@@ -96,13 +96,16 @@ Portlyn is built to replace a Traefik plus Authentik plus Crowdsec plus WireGuar
 * Auto renew, manual renew, retry, sync status, PEM import
 * DNS provider credentials encrypted at rest
 
-### Tunnel
+### Tunnel and mesh
 
-* Userspace WireGuard server inside the same process
-* Per node keypair, dynamic peer add and revoke
-* Direct dial from the proxy into the tunnel via gVisor netstack
-* Node agent fetches its config and writes it to disk
-* Heartbeat reports handshake age and byte counters
+* Userspace WireGuard server inside the same process, backed by gVisor netstack. No kernel module, no root, no `wg-quick`.
+* Node agent runs WireGuard in process and forwards tunnel connections to local services. It generates its own keypair, enrolls, and never writes a config to disk.
+* One line installer: `curl -fsSL https://<your-host>/install.sh | sudo sh -s -- --token <TOKEN>` downloads a checksum verified binary and installs a systemd service.
+* Per service routing: map a hostname to a service that lives behind a node, the proxy dials it over the tunnel.
+* Whole subnet routing: a node can advertise LAN subnets so the mesh reaches every host on its network.
+* Site to site: nodes reach each other through the hub router (IP forwarding on the netstack).
+* Roaming clients: issue a WireGuard config plus QR code for the official WireGuard app, scoped to the subnets you allow.
+* Heartbeat reports handshake age and byte counters; dynamic peer add and revoke.
 
 ### Audit and operations
 
@@ -129,7 +132,7 @@ Portlyn is built to replace a Traefik plus Authentik plus Crowdsec plus WireGuar
 * Services
 * Domains
 * Nodes
-* Tunnel
+* Clients
 * Certificates
 * DNS providers
 * Groups
@@ -487,7 +490,7 @@ Existing automated coverage includes:
 * TLS certificate loading and metadata sync
 * Node enrollment, heartbeat tokens, mTLS pinning
 * Access policy checks for roles, groups, and restricted policies
-* Tunnel keypair generation, IP pool allocation, end to end userspace WireGuard round trip
+* Tunnel keypair generation, IP pool allocation, peer spec building, end to end userspace WireGuard round trip including subnet proxy
 * Exposure scanner against a real TLS test server
 * CrowdSec stream decoder and IP and CIDR blocking
 * GeoIP country allow and block resolution
@@ -540,7 +543,7 @@ The next milestones, in order:
 │   ├── scanner/          exposure scanner
 │   ├── security/         CrowdSec LAPI client
 │   ├── store/            GORM stores
-│   └── tunnel/           userspace WireGuard server and IP pool
+│   └── tunnel/           userspace WireGuard server, client, netstack, mesh peers and IP pool
 ├── scripts/              helper scripts
 ├── .env.docker.example   environment template
 ├── deploy.sh             interactive deployment helper
