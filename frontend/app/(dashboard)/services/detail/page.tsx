@@ -17,13 +17,14 @@ import { buildServiceRequestPayload, legacyAuthPolicyFromAccessMode } from "@/li
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { serviceHostname } from "@/lib/service-host";
-import type { Domain, Group as UserGroup, Service, ServiceGroup, ServicePayload } from "@/lib/types";
+import type { Domain, Group as UserGroup, Node as PortlynNode, Service, ServiceGroup, ServicePayload } from "@/lib/types";
 
 function ServiceDetailContent() {
   const [service, setService] = useState<Service | null>(null);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [groups, setGroups] = useState<UserGroup[]>([]);
   const [serviceGroups, setServiceGroups] = useState<ServiceGroup[]>([]);
+  const [nodes, setNodes] = useState<PortlynNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,16 +51,18 @@ function ServiceDetailContent() {
     setIsLoading(true);
     setError(null);
     try {
-      const [serviceItem, domainItems, groupItems, serviceGroupItems] = await Promise.all([
+      const [serviceItem, domainItems, groupItems, serviceGroupItems, nodeItems] = await Promise.all([
         apiFetch<Service>(`/api/v1/services/${serviceId}`),
         apiFetch<Domain[]>("/api/v1/domains"),
         canManage ? apiFetch<UserGroup[]>("/api/v1/groups") : Promise.resolve([]),
-        canManage ? apiFetch<ServiceGroup[]>("/api/v1/service-groups") : Promise.resolve([])
+        canManage ? apiFetch<ServiceGroup[]>("/api/v1/service-groups") : Promise.resolve([]),
+        canManage ? apiFetch<PortlynNode[]>("/api/v1/nodes") : Promise.resolve([])
       ]);
       setService(serviceItem);
       setDomains(domainItems);
       setGroups(groupItems);
       setServiceGroups(serviceGroupItems);
+      setNodes(nodeItems);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to load service.");
     } finally {
@@ -195,6 +198,18 @@ function ServiceDetailContent() {
                 <AuthPolicyBadge value={service.auth_policy} />
               </div>
               <div>
+                <Text c="dimmed" size="xs">Routing</Text>
+                {service.node_id ? (
+                  <Text size="sm">
+                    Via node {nodes.find((node) => node.id === service.node_id)?.name || `#${service.node_id}`}
+                    {" "}
+                    <Text span c="dimmed">({nodes.find((node) => node.id === service.node_id)?.wg_tunnel_ip || "tunnel"})</Text>
+                  </Text>
+                ) : (
+                  <Text size="sm">Direct (no tunnel)</Text>
+                )}
+              </div>
+              <div>
                 <Text c="dimmed" size="xs">Last deployed</Text>
                 <Text size="sm">{formatDateTime(service.last_deployed_at)}</Text>
               </div>
@@ -223,6 +238,7 @@ function ServiceDetailContent() {
                 domains={domains}
                 groups={groups}
                 serviceGroups={serviceGroups}
+                nodes={nodes}
                 initialValues={service}
                 inheritedFrom={inheritedGroup?.name}
                 onSubmit={handleSave}
