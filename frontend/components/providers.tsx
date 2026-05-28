@@ -117,8 +117,6 @@ function AuthProvider({ children }: { children: ReactNode }) {
       const response = await loginRequest(email, password);
       if (!response.requires_mfa) {
         completeAuth(response);
-      } else {
-        setUser(response.user);
       }
       return response;
     },

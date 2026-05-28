@@ -9,6 +9,7 @@ import {
   Loader,
   Paper,
   PasswordInput,
+  PinInput,
   Stack,
   Text,
   TextInput,
@@ -31,6 +32,7 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [mfaCode, setMFACode] = useState("");
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [mfaToken, setMFAToken] = useState<string | null>(null);
   const [otpStage, setOtpStage] = useState<"idle" | "requested">("idle");
   const [otpHint, setOtpHint] = useState<string | null>(null);
@@ -119,11 +121,15 @@ function LoginContent() {
     }
   };
 
-  const handleVerifyOTP = async () => {
+  const handleVerifyOTP = async (codeOverride?: string) => {
+    const code = (codeOverride ?? otpCode).trim();
+    if (code.length < 6) {
+      return;
+    }
     setIsOTPSubmitting(true);
     setError(null);
     try {
-      const response = await verifyOTP(email, otpCode);
+      const response = await verifyOTP(email, code);
       if (response.requires_mfa && response.mfa_token) {
         setMFAToken(response.mfa_token);
         return;
@@ -136,14 +142,18 @@ function LoginContent() {
     }
   };
 
-  const handleVerifyMFA = async () => {
+  const handleVerifyMFA = async (codeOverride?: string) => {
     if (!mfaToken) {
+      return;
+    }
+    const code = (codeOverride ?? mfaCode).trim();
+    if (code.length < 6) {
       return;
     }
     setIsSubmitting(true);
     setError(null);
     try {
-      await verifyMFA(mfaToken, mfaCode);
+      await verifyMFA(mfaToken, code);
       window.location.assign(nextPath);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to verify authenticator code.");
@@ -181,12 +191,31 @@ function LoginContent() {
 
           {mfaToken ? (
             <Stack gap="sm">
-              <Alert color="gray" variant="light" styles={authInfoAlertStyle(ui)}>
-                Enter a 6-digit authenticator code or one of your recovery codes to finish sign-in.
-              </Alert>
-              <TextInput label="Authenticator or recovery code" value={mfaCode} onChange={(event) => setMFACode(event.currentTarget.value)} styles={fields} />
-              <Button loading={isSubmitting} onClick={handleVerifyMFA} style={buttonStyle(ui)}>
-                Verify MFA
+              <Text size="sm" c={ui.muted_text_color}>
+                {useRecoveryCode ? "Enter one of your recovery codes." : "Enter the 6-digit code from your authenticator app."}
+              </Text>
+              {useRecoveryCode ? (
+                <TextInput label="Recovery code" value={mfaCode} onChange={(event) => setMFACode(event.currentTarget.value)} styles={fields} autoFocus />
+              ) : (
+                <Group justify="center" my="xs">
+                  <PinInput
+                    length={6}
+                    type="number"
+                    inputMode="numeric"
+                    oneTimeCode
+                    size="lg"
+                    autoFocus
+                    value={mfaCode}
+                    onChange={setMFACode}
+                    onComplete={(value) => void handleVerifyMFA(value)}
+                  />
+                </Group>
+              )}
+              <Button loading={isSubmitting} onClick={() => void handleVerifyMFA()} style={buttonStyle(ui)}>
+                Verify
+              </Button>
+              <Button variant="subtle" size="xs" onClick={() => { setUseRecoveryCode((v) => !v); setMFACode(""); }}>
+                {useRecoveryCode ? "Use authenticator code instead" : "Use a recovery code instead"}
               </Button>
             </Stack>
           ) : (
@@ -223,8 +252,19 @@ function LoginContent() {
                 </Group>
                 {otpStage === "requested" ? (
                   <>
-                    <TextInput label="One-time code" value={otpCode} onChange={(event) => setOtpCode(event.currentTarget.value)} styles={fields} />
-                    <Button loading={isOTPSubmitting} onClick={handleVerifyOTP} style={buttonStyle(ui)}>
+                    <Text size="sm" c={ui.muted_text_color}>Enter the code from your email.</Text>
+                    <Group justify="center" my="xs">
+                      <PinInput
+                        length={8}
+                        type="alphanumeric"
+                        oneTimeCode
+                        size="md"
+                        value={otpCode}
+                        onChange={(value) => setOtpCode(value.toUpperCase())}
+                        onComplete={(value) => { setOtpCode(value.toUpperCase()); void handleVerifyOTP(value.toUpperCase()); }}
+                      />
+                    </Group>
+                    <Button loading={isOTPSubmitting} onClick={() => handleVerifyOTP()} style={buttonStyle(ui)}>
                       {ui.login_otp_verify_label}
                     </Button>
                   </>
