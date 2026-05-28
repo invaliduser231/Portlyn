@@ -54,8 +54,9 @@ export function mergeAuthUI(value?: Partial<AuthUISettings> | null): AuthUISetti
 export function authShellStyle(ui: AuthUISettings) {
   return {
     minHeight: "100vh",
-    display: "grid",
-    placeItems: "center",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 16,
     background: `linear-gradient(180deg, ${ui.background_color} 0%, #121316 48%, #0d0e11 100%)`
   } as const;
