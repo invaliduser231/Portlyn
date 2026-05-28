@@ -3,7 +3,7 @@
 import { Badge, Box, NavLink, Stack, Text } from "@mantine/core";
 import {
   IconActivity,
-  IconBolt,
+  IconDeviceLaptop,
   IconFileText,
   IconGlobe,
   IconGridDots,
@@ -30,7 +30,7 @@ const items: Array<{
   { label: "Services", href: "/services", icon: IconGridDots, roles: ["admin", "viewer"] },
   { label: "Domains", href: "/domains", icon: IconGlobe, roles: ["admin"] },
   { label: "Nodes", href: "/nodes", icon: IconActivity, roles: ["admin"] },
-  { label: "Tunnel", href: "/tunnel", icon: IconBolt, roles: ["admin"] },
+  { label: "Clients", href: "/clients", icon: IconDeviceLaptop, roles: ["admin"] },
   { label: "Certificates", href: "/certificates", icon: IconLock, roles: ["admin"] },
   { label: "DNS Providers", href: "/dns-providers", icon: IconGlobe, roles: ["admin"] },
   { label: "System", href: "/system", icon: IconActivity, roles: ["admin"] },

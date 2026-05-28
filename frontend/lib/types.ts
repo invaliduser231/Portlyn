@@ -148,9 +148,32 @@ export interface Node {
   wg_last_handshake?: string | null;
   wg_rx_bytes?: number;
   wg_tx_bytes?: number;
+  advertised_subnets?: string;
   tunnel_status?: TunnelStatus | string;
   created_at: string;
   updated_at: string;
+}
+
+export interface MeshClient {
+  id: number;
+  name: string;
+  description: string;
+  wg_public_key?: string;
+  wg_tunnel_ip?: string;
+  wg_allowed_ips?: string;
+  allowed_node_ids?: string;
+  enabled: boolean;
+  wg_last_handshake?: string | null;
+  tunnel_status?: TunnelStatus | string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MeshClientConfigResponse {
+  client: MeshClient;
+  config_text: string;
+  address: string;
+  allowed_ips: string[];
 }
 
 export interface TunnelSettings {
@@ -217,19 +240,6 @@ export interface MagicLinkResponse {
   url: string;
   token: string;
   expires_at: string;
-}
-
-export interface TunnelBootstrapResponse {
-  node_id: number;
-  public_key: string;
-  private_key: string;
-  address: string;
-  server_public_key: string;
-  server_endpoint: string;
-  allowed_ips: string[];
-  persistent_keepalive: number;
-  config_text: string;
-  issued_at: string;
 }
 
 export interface ServiceGroup {
@@ -575,6 +585,7 @@ export interface NodePayload {
   description: string;
   status: string;
   version: string;
+  advertised_subnets?: string;
 }
 
 export interface ServicePayload {

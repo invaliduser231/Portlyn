@@ -34,23 +34,25 @@ type reencryptDataKeyRequest struct {
 }
 
 type createNodeRequest struct {
-	Name        string     `json:"name" validate:"required,min=2,max=255"`
-	Description string     `json:"description"`
-	LastSeenAt  *time.Time `json:"last_seen_at"`
-	Version     string     `json:"version" validate:"max=64"`
-	Status      string     `json:"status" validate:"required,max=64"`
-	AuthMode    string     `json:"heartbeat_auth_mode" validate:"omitempty,oneof=token mtls"`
-	MTLSSHA256  string     `json:"mtls_cert_sha256" validate:"omitempty,len=64,hexadecimal"`
+	Name              string     `json:"name" validate:"required,min=2,max=255"`
+	Description       string     `json:"description"`
+	LastSeenAt        *time.Time `json:"last_seen_at"`
+	Version           string     `json:"version" validate:"max=64"`
+	Status            string     `json:"status" validate:"required,max=64"`
+	AuthMode          string     `json:"heartbeat_auth_mode" validate:"omitempty,oneof=token mtls"`
+	MTLSSHA256        string     `json:"mtls_cert_sha256" validate:"omitempty,len=64,hexadecimal"`
+	AdvertisedSubnets *string    `json:"advertised_subnets"`
 }
 
 type updateNodeRequest struct {
-	Name        *string    `json:"name" validate:"omitempty,min=2,max=255"`
-	Description *string    `json:"description"`
-	LastSeenAt  *time.Time `json:"last_seen_at"`
-	Version     *string    `json:"version" validate:"omitempty,max=64"`
-	Status      *string    `json:"status" validate:"omitempty,max=64"`
-	AuthMode    *string    `json:"heartbeat_auth_mode" validate:"omitempty,oneof=token mtls"`
-	MTLSSHA256  *string    `json:"mtls_cert_sha256" validate:"omitempty,len=64,hexadecimal"`
+	Name              *string    `json:"name" validate:"omitempty,min=2,max=255"`
+	Description       *string    `json:"description"`
+	LastSeenAt        *time.Time `json:"last_seen_at"`
+	Version           *string    `json:"version" validate:"omitempty,max=64"`
+	Status            *string    `json:"status" validate:"omitempty,max=64"`
+	AuthMode          *string    `json:"heartbeat_auth_mode" validate:"omitempty,oneof=token mtls"`
+	MTLSSHA256        *string    `json:"mtls_cert_sha256" validate:"omitempty,len=64,hexadecimal"`
+	AdvertisedSubnets *string    `json:"advertised_subnets"`
 }
 
 type heartbeatNodeRequest struct {

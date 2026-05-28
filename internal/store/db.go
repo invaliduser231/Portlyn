@@ -82,6 +82,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&domain.GroupMembership{},
 		&domain.Node{},
 		&domain.NodeEnrollmentToken{},
+		&domain.Client{},
 		&domain.Domain{},
 		&domain.Certificate{},
 		&domain.CertificateSAN{},

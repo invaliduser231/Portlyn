@@ -1,10 +1,11 @@
 "use client";
 
-import { Alert, Badge, Button, Card, Group, NumberInput, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Alert, Badge, Button, Card, Code, Group, NumberInput, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 
 import { apiFetch, ApiError } from "@/lib/api";
+import type { TunnelSettings } from "@/lib/types";
 
 interface NetworkSettings {
   geoip_db_path: string;
@@ -72,6 +73,8 @@ export function NetworkSecurityCard() {
 
   return (
     <Stack gap="md">
+      <TunnelServerCard />
+
       <Card withBorder>
         <Stack gap="md">
           <Group justify="space-between">
@@ -139,5 +142,120 @@ export function NetworkSecurityCard() {
         <Button onClick={() => void save()} loading={saving}>Save network settings</Button>
       </Group>
     </Stack>
+  );
+}
+
+function TunnelServerCard() {
+  const [settings, setSettings] = useState<TunnelSettings | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [endpoint, setEndpoint] = useState("");
+  const [listenPort, setListenPort] = useState<number | "">(51820);
+  const [cidr, setCIDR] = useState("10.42.0.0/16");
+  const [serverTunnelIP, setServerTunnelIP] = useState("10.42.0.1");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    try {
+      const response = await apiFetch<TunnelSettings>("/api/v1/tunnel/settings");
+      setSettings(response);
+      setEnabled(response.enabled);
+      setEndpoint(response.server_endpoint || "");
+      setListenPort(response.listen_port ?? 51820);
+      setCIDR(response.cidr || "10.42.0.0/16");
+      setServerTunnelIP(response.server_tunnel_ip || "10.42.0.1");
+    } catch (err) {
+      notifications.show({ color: "danger", message: err instanceof ApiError ? err.message : "Failed to load tunnel settings." });
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const response = await apiFetch<TunnelSettings>("/api/v1/tunnel/settings", {
+        method: "PATCH",
+        body: JSON.stringify({
+          enabled,
+          server_endpoint: endpoint,
+          listen_port: typeof listenPort === "number" ? listenPort : undefined,
+          cidr,
+          server_tunnel_ip: serverTunnelIP
+        })
+      });
+      setSettings(response);
+      notifications.show({ color: "success", message: "Tunnel settings saved." });
+    } catch (err) {
+      notifications.show({ color: "danger", message: err instanceof ApiError ? err.message : "Save failed." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card withBorder>
+      <Stack gap="md">
+        <Group justify="space-between">
+          <Text fw={600}>WireGuard tunnel server</Text>
+          {settings?.configured ? (
+            <Badge color="success">{settings.configured_peer_count} peers</Badge>
+          ) : (
+            <Badge color="gray">not configured</Badge>
+          )}
+        </Group>
+        <Text size="sm" c="dimmed">
+          Lets nodes behind NAT or CGNAT reach this server. Set a public endpoint, then run the node agent; the server keypair is generated automatically.
+        </Text>
+
+        {enabled && settings && !settings.configured ? (
+          <Alert color="warning" variant="light">
+            Set a public endpoint (host:port) so nodes can reach this server. The server keypair is generated on save.
+          </Alert>
+        ) : null}
+
+        <Switch label="Enable tunnel" checked={enabled} onChange={(e) => setEnabled(e.currentTarget.checked)} />
+        <TextInput
+          label="Public endpoint"
+          description="Host:port nodes will dial. Example: vpn.example.com:51820"
+          value={endpoint}
+          onChange={(e) => setEndpoint(e.currentTarget.value)}
+        />
+        <NumberInput
+          label="Listen port"
+          description="UDP port the tunnel listens on."
+          value={listenPort}
+          onChange={(v) => setListenPort(typeof v === "number" ? v : 51820)}
+          min={1}
+          max={65535}
+        />
+        <TextInput
+          label="Tunnel CIDR"
+          description="IP range allocated to peers (server uses .1)."
+          value={cidr}
+          onChange={(e) => setCIDR(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Server tunnel IP"
+          value={serverTunnelIP}
+          onChange={(e) => setServerTunnelIP(e.currentTarget.value)}
+        />
+
+        {settings?.configured ? (
+          <Stack gap={4}>
+            <Text size="sm" fw={500}>Server public key</Text>
+            <Code block>{settings.server_public_key}</Code>
+            <Text size="sm" c="dimmed">
+              {settings.connected_peer_count} of {settings.configured_peer_count} peers reported a recent handshake.
+            </Text>
+          </Stack>
+        ) : null}
+
+        <Group justify="flex-end">
+          <Button onClick={() => void save()} loading={saving}>Save tunnel settings</Button>
+        </Group>
+      </Stack>
+    </Card>
   );
 }

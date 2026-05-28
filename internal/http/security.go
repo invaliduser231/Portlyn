@@ -114,15 +114,15 @@ func (s *Server) isNodeAuthPath(path string) bool {
 	if normalized == "/api/v1/nodes/enroll" {
 		return true
 	}
-	matches := heartbeatPathPattern.FindStringSubmatch(normalized)
-	if len(matches) != 2 {
+	matches := nodeAuthPathPattern.FindStringSubmatch(normalized)
+	if len(matches) < 2 {
 		return false
 	}
 	_, err := strconv.ParseUint(matches[1], 10, 64)
 	return err == nil
 }
 
-var heartbeatPathPattern = regexp.MustCompile(`^/api/v1/nodes/([0-9]+)/heartbeat$`)
+var nodeAuthPathPattern = regexp.MustCompile(`^/api/v1/nodes/([0-9]+)/(heartbeat|wg-bootstrap|tunnel-targets)$`)
 
 func normalizeNodeAuthPath(raw string) string {
 	trimmed := strings.TrimSpace(raw)

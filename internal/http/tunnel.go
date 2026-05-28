@@ -2,9 +2,11 @@ package http
 
 import (
 	"errors"
+	"net"
 	stdhttp "net/http"
+	"net/url"
+	"strconv"
 	"strings"
-	"time"
 
 	"portlyn/internal/domain"
 	"portlyn/internal/tunnel"
@@ -35,19 +37,7 @@ type updateTunnelSettingsRequest struct {
 type bootstrapNodeRequest struct {
 	ForceReissue bool     `json:"force_reissue,omitempty"`
 	AllowedIPs   []string `json:"allowed_ips,omitempty"`
-}
-
-type bootstrapNodeResponse struct {
-	NodeID          uint      `json:"node_id"`
-	PublicKey       string    `json:"public_key"`
-	PrivateKey      string    `json:"private_key"`
-	Address         string    `json:"address"`
-	ServerPublicKey string    `json:"server_public_key"`
-	ServerEndpoint  string    `json:"server_endpoint"`
-	AllowedIPs      []string  `json:"allowed_ips"`
-	PersistentKeep  int       `json:"persistent_keepalive"`
-	ConfigText      string    `json:"config_text"`
-	IssuedAt        time.Time `json:"issued_at"`
+	PublicKey    string   `json:"public_key,omitempty"`
 }
 
 func (s *Server) handleGetTunnelSettings(w stdhttp.ResponseWriter, r *stdhttp.Request) {
@@ -131,8 +121,8 @@ func (s *Server) handleUpdateTunnelSettings(w stdhttp.ResponseWriter, r *stdhttp
 			if err == nil {
 				if startErr := server.Start(r.Context(), refreshed); startErr != nil {
 					s.logger.Warn("failed to start tunnel server", "error", startErr)
-				} else if items, err := s.nodes.List(r.Context()); err == nil {
-					_ = server.ApplyPeers(items)
+				} else {
+					_ = s.tunnel.ApplyPeers(r.Context())
 				}
 			}
 		}
@@ -156,26 +146,49 @@ func (s *Server) handleUpdateTunnelSettings(w stdhttp.ResponseWriter, r *stdhttp
 	writeJSON(w, stdhttp.StatusOK, tunnelStatusFromSettings(settings))
 }
 
-func (s *Server) handleBootstrapNodeTunnel(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+type tunnelTargetItem struct {
+	ServiceID  uint   `json:"service_id"`
+	ListenPort int    `json:"listen_port"`
+	LocalAddr  string `json:"local_addr"`
+}
+
+type tunnelTargetsResponse struct {
+	Targets           []tunnelTargetItem `json:"targets"`
+	AdvertisedSubnets []string           `json:"advertised_subnets"`
+}
+
+func (s *Server) handleNodeSelfBootstrap(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if !s.requireNodeSecureTransport(w, r) {
+		return
+	}
 	if s.tunnel == nil {
 		writeError(w, stdhttp.StatusServiceUnavailable, "tunnel_unavailable", "tunnel manager is not configured")
 		return
 	}
-	id, ok := s.parseIDParam(w, r, "id")
+	node, ok := s.loadNode(w, r)
 	if !ok {
+		return
+	}
+	if !s.authorizeNodeHeartbeat(r, node) {
+		writeError(w, stdhttp.StatusUnauthorized, "unauthorized", "missing or invalid node token")
 		return
 	}
 	var req bootstrapNodeRequest
 	_ = decodeStrictJSON(r, &req)
-	result, err := s.tunnel.BootstrapNode(r.Context(), id, tunnel.BootstrapOptions{
-		ForceReissue:     req.ForceReissue,
+	if strings.TrimSpace(req.PublicKey) == "" {
+		writeError(w, stdhttp.StatusBadRequest, "missing_public_key", "public_key is required")
+		return
+	}
+	if err := tunnel.ValidatePublicKey(strings.TrimSpace(req.PublicKey)); err != nil {
+		writeError(w, stdhttp.StatusBadRequest, "invalid_public_key", "public_key is not a valid wireguard key")
+		return
+	}
+	result, err := s.tunnel.BootstrapNode(r.Context(), node.ID, tunnel.BootstrapOptions{
+		ForceReissue:     true,
 		ClientAllowedIPs: req.AllowedIPs,
+		ClientPublicKey:  strings.TrimSpace(req.PublicKey),
 	})
 	if err != nil {
-		if errors.Is(err, tunnel.ErrNodeAlreadyProvisioned) {
-			writeError(w, stdhttp.StatusConflict, "node_already_provisioned", "node already has a tunnel assignment; pass force_reissue=true to replace it")
-			return
-		}
 		if errors.Is(err, tunnel.ErrPoolExhausted) {
 			writeError(w, stdhttp.StatusConflict, "pool_exhausted", "tunnel ip pool is exhausted")
 			return
@@ -187,21 +200,84 @@ func (s *Server) handleBootstrapNodeTunnel(w stdhttp.ResponseWriter, r *stdhttp.
 		s.internalError(w, err)
 		return
 	}
-	_ = s.audit.LogRequest(r.Context(), r, s.currentUserID(r), "tunnel_bootstrap", "node", &id, map[string]any{
+	_ = s.audit.LogRequest(r.Context(), r, nil, "tunnel_self_bootstrap", "node", &node.ID, map[string]any{
 		"tunnel_ip": result.Node.WGTunnelIP,
 	})
-	writeJSON(w, stdhttp.StatusOK, bootstrapNodeResponse{
-		NodeID:          result.Node.ID,
-		PublicKey:       result.ClientBundle.PublicKey,
-		PrivateKey:      result.ClientBundle.PrivateKey,
-		Address:         result.ClientBundle.Address,
-		ServerPublicKey: result.ClientBundle.ServerPublicKey,
-		ServerEndpoint:  result.ClientBundle.ServerEndpoint,
-		AllowedIPs:      result.ClientBundle.AllowedIPs,
-		PersistentKeep:  result.ClientBundle.Keepalive,
-		ConfigText:      result.ClientConfig,
-		IssuedAt:        time.Now().UTC(),
+	writeJSON(w, stdhttp.StatusOK, map[string]any{
+		"node_id":            result.Node.ID,
+		"tunnel_ip":          result.Node.WGTunnelIP,
+		"server_public_key":  result.ClientBundle.ServerPublicKey,
+		"server_endpoint":    result.ClientBundle.ServerEndpoint,
+		"allowed_ips":        result.ClientBundle.AllowedIPs,
+		"keepalive":          result.ClientBundle.Keepalive,
+		"advertised_subnets": result.AdvertisedSubnets,
 	})
+}
+
+func (s *Server) handleNodeTunnelTargets(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if !s.requireNodeSecureTransport(w, r) {
+		return
+	}
+	node, ok := s.loadNode(w, r)
+	if !ok {
+		return
+	}
+	if !s.authorizeNodeHeartbeat(r, node) {
+		writeError(w, stdhttp.StatusUnauthorized, "unauthorized", "missing or invalid node token")
+		return
+	}
+	services, err := s.services.List(r.Context())
+	if err != nil {
+		s.internalError(w, err)
+		return
+	}
+	targets := make([]tunnelTargetItem, 0)
+	for _, svc := range services {
+		if svc.NodeID == nil || *svc.NodeID != node.ID {
+			continue
+		}
+		parsed, err := url.Parse(strings.TrimSpace(svc.TargetURL))
+		if err != nil {
+			continue
+		}
+		portStr := parsed.Port()
+		if portStr == "" {
+			if strings.EqualFold(parsed.Scheme, "https") {
+				portStr = "443"
+			} else {
+				portStr = "80"
+			}
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil || port <= 0 || port > 65535 {
+			continue
+		}
+		host := parsed.Hostname()
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		targets = append(targets, tunnelTargetItem{
+			ServiceID:  svc.ID,
+			ListenPort: port,
+			LocalAddr:  net.JoinHostPort(host, portStr),
+		})
+	}
+	writeJSON(w, stdhttp.StatusOK, tunnelTargetsResponse{
+		Targets:           targets,
+		AdvertisedSubnets: splitSubnetCSV(node.AdvertisedSubnets),
+	})
+}
+
+func splitSubnetCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func (s *Server) handleRevokeNodeTunnel(w stdhttp.ResponseWriter, r *stdhttp.Request) {

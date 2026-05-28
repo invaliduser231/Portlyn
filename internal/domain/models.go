@@ -268,9 +268,27 @@ type Node struct {
 	WGLastHandshake    *time.Time `json:"wg_last_handshake"`
 	WGRxBytes          int64      `gorm:"not null;default:0" json:"wg_rx_bytes"`
 	WGTxBytes          int64      `gorm:"not null;default:0" json:"wg_tx_bytes"`
+	AdvertisedSubnets  string     `gorm:"size:512" json:"advertised_subnets"`
 	TunnelStatus       string     `gorm:"size:32;not null;default:inactive" json:"tunnel_status"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
+}
+
+type Client struct {
+	ID              uint       `gorm:"primaryKey" json:"id"`
+	Name            string     `gorm:"size:255;not null" json:"name"`
+	Description     string     `gorm:"type:text" json:"description"`
+	WGPublicKey     string     `gorm:"size:64;index" json:"wg_public_key"`
+	WGTunnelIP      string     `gorm:"size:64;index" json:"wg_tunnel_ip"`
+	WGAllowedIPs    string     `gorm:"size:512" json:"wg_allowed_ips"`
+	AllowedNodeIDs  string     `gorm:"size:512" json:"allowed_node_ids"`
+	Enabled         bool       `gorm:"not null;default:true" json:"enabled"`
+	WGLastHandshake *time.Time `json:"wg_last_handshake"`
+	WGRxBytes       int64      `gorm:"not null;default:0" json:"wg_rx_bytes"`
+	WGTxBytes       int64      `gorm:"not null;default:0" json:"wg_tx_bytes"`
+	TunnelStatus    string     `gorm:"size:32;not null;default:inactive" json:"tunnel_status"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type NodeEnrollmentToken struct {

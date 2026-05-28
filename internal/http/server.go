@@ -44,6 +44,7 @@ type Server struct {
 	users            *store.UserStore
 	groups           *store.GroupStore
 	nodes            *store.NodeStore
+	clients          *store.ClientStore
 	domains          *store.DomainStore
 	certificates     *store.CertificateStore
 	dnsProviders     *store.DNSProviderStore
@@ -89,6 +90,7 @@ func NewServer(
 	userStore *store.UserStore,
 	groupStore *store.GroupStore,
 	nodeStore *store.NodeStore,
+	clientStore *store.ClientStore,
 	domainStore *store.DomainStore,
 	certificateStore *store.CertificateStore,
 	dnsProviderStore *store.DNSProviderStore,
@@ -131,6 +133,7 @@ func NewServer(
 		users:            userStore,
 		groups:           groupStore,
 		nodes:            nodeStore,
+		clients:          clientStore,
 		domains:          domainStore,
 		certificates:     certificateStore,
 		dnsProviders:     dnsProviderStore,
@@ -204,7 +207,6 @@ func (s *Server) Router() stdhttp.Handler {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/node-agent/source", s.handleNodeAgentSource)
 		r.Post("/auth/login", s.handleLogin)
 		r.Post("/auth/break-glass/login", s.handleBreakGlassLogin)
 		r.Post("/auth/request-otp", s.handleRequestOTP)
@@ -219,6 +221,8 @@ func (s *Server) Router() stdhttp.Handler {
 		r.Get("/auth/config", s.handleAuthConfig)
 		r.Post("/nodes/enroll", s.handleEnrollNode)
 		r.Post("/nodes/{id}/heartbeat", s.handleHeartbeatNode)
+		r.Post("/nodes/{id}/wg-bootstrap", s.handleNodeSelfBootstrap)
+		r.Get("/nodes/{id}/tunnel-targets", s.handleNodeTunnelTargets)
 		r.Get("/route-auth/service/{id}", s.handleGetRouteAuthService)
 		r.Post("/route-auth/pin", s.handleRoutePIN)
 		r.Post("/route-auth/request-email-code", s.handleRouteRequestEmailCode)
@@ -321,8 +325,12 @@ func (s *Server) Router() stdhttp.Handler {
 
 				r.Get("/tunnel/settings", s.handleGetTunnelSettings)
 				r.Patch("/tunnel/settings", s.handleUpdateTunnelSettings)
-				r.Post("/nodes/{id}/wg-bootstrap", s.handleBootstrapNodeTunnel)
 				r.Delete("/nodes/{id}/wg-tunnel", s.handleRevokeNodeTunnel)
+
+				r.Get("/clients", s.handleListClients)
+				r.Post("/clients", s.handleCreateClient)
+				r.Post("/clients/{id}/rotate", s.handleRotateClient)
+				r.Delete("/clients/{id}", s.handleDeleteClient)
 
 				r.Post("/services/{id}/magic-link", s.handleIssueMagicLink)
 

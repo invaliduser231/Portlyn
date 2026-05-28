@@ -43,20 +43,13 @@ function resolveNodeAPIBaseUrl() {
 }
 
 function buildNodeCommands(apiBaseUrl: string, token: string, nodeName: string, nodeDescription: string) {
-  const sourceUrl = `${apiBaseUrl}/api/v1/node-agent/source`;
-  const linuxArgs = [
+  const dockerImage = "ghcr.io/invaliduser231/portlyn-nodeagent:latest";
+  const shArgs = (version: string) => [
     `--api ${shellEscape(apiBaseUrl)}`,
     `--token ${shellEscape(token)}`,
     `--name ${shellEscape(nodeName)}`,
     nodeDescription.trim() ? `--description ${shellEscape(nodeDescription)}` : "",
-    `--version ${shellEscape("linux-node")}`,
-  ].filter(Boolean).join(" ");
-  const macArgs = [
-    `--api ${shellEscape(apiBaseUrl)}`,
-    `--token ${shellEscape(token)}`,
-    `--name ${shellEscape(nodeName)}`,
-    nodeDescription.trim() ? `--description ${shellEscape(nodeDescription)}` : "",
-    `--version ${shellEscape("macos-node")}`,
+    `--version ${shellEscape(version)}`,
   ].filter(Boolean).join(" ");
   const winArgs = [
     `--api ${powerShellEscape(apiBaseUrl)}`,
@@ -65,22 +58,30 @@ function buildNodeCommands(apiBaseUrl: string, token: string, nodeName: string, 
     nodeDescription.trim() ? `--description ${powerShellEscape(nodeDescription)}` : "",
     `--version ${powerShellEscape("windows-node")}`,
   ].filter(Boolean).join(" ");
+  const dockerArgs = [
+    `--api ${shellEscape(apiBaseUrl)}`,
+    `--token ${shellEscape(token)}`,
+    `--name ${shellEscape(nodeName)}`,
+    nodeDescription.trim() ? `--description ${shellEscape(nodeDescription)}` : "",
+    `--version ${shellEscape("docker-node")}`,
+  ].filter(Boolean).join(" ");
 
   return {
     linux: {
-      oneLiner: `curl -fsSL ${shellEscape(sourceUrl)} -o /tmp/portlyn-nodeagent.go && go run /tmp/portlyn-nodeagent.go ${linuxArgs}`,
-      binary: `chmod +x ./nodeagent\n./nodeagent ${linuxArgs}`,
-      source: `go build -o nodeagent ./cmd/nodeagent\nchmod +x ./nodeagent\n./nodeagent ${linuxArgs}`
+      binary: `chmod +x ./portlyn-nodeagent-linux-amd64\n./portlyn-nodeagent-linux-amd64 ${shArgs("linux-node")}`,
+      goInstall: `go install portlyn/cmd/nodeagent@latest\nnodeagent ${shArgs("linux-node")}`,
+      docker: `docker run -d --restart unless-stopped --name portlyn-nodeagent \\\n  -v portlyn-nodeagent:/data \\\n  ${dockerImage} ${dockerArgs}`
     },
     macos: {
-      oneLiner: `curl -fsSL ${shellEscape(sourceUrl)} -o /tmp/portlyn-nodeagent.go && go run /tmp/portlyn-nodeagent.go ${macArgs}`,
-      binary: `chmod +x ./nodeagent\n./nodeagent ${macArgs}`,
-      source: `go build -o nodeagent ./cmd/nodeagent\nchmod +x ./nodeagent\n./nodeagent ${macArgs}`
+      binary: `chmod +x ./portlyn-nodeagent-darwin-arm64\n./portlyn-nodeagent-darwin-arm64 ${shArgs("macos-node")}`,
+      goInstall: `go install portlyn/cmd/nodeagent@latest\nnodeagent ${shArgs("macos-node")}`,
+      docker: `docker run -d --restart unless-stopped --name portlyn-nodeagent \\\n  -v portlyn-nodeagent:/data \\\n  ${dockerImage} ${dockerArgs}`
     },
     windows: {
-      oneLiner: `$dst=Join-Path $env:TEMP 'portlyn-nodeagent.go'; Invoke-WebRequest -UseBasicParsing ${powerShellEscape(sourceUrl)} -OutFile $dst; go run $dst ${winArgs}`,
-      binary: `.\\nodeagent.exe ${winArgs}`,
-      source: `go build -o nodeagent.exe .\\cmd\\nodeagent\n.\\nodeagent.exe ${winArgs}`
+      binary: `.\\portlyn-nodeagent-windows-amd64.exe ${winArgs}`,
+      goInstall: `go install portlyn/cmd/nodeagent@latest\nnodeagent ${winArgs}`,
+      docker: `docker run -d --restart unless-stopped --name portlyn-nodeagent ` +
+        `-v portlyn-nodeagent:/data ${dockerImage} ${dockerArgs}`
     }
   };
 }
@@ -418,20 +419,7 @@ export default function NodesPage() {
                 <Divider />
                 <Stack gap="xs">
                   <Group justify="space-between" align="center">
-                    <Text fw={500}>One-line install</Text>
-                    <CopyButton value={currentCommand?.oneLiner || ""}>
-                      {({ copied, copy }) => (
-                        <Button size="xs" variant="subtle" leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />} onClick={copy}>
-                          {copied ? "Copied" : "Copy"}
-                        </Button>
-                      )}
-                    </CopyButton>
-                  </Group>
-                  <Textarea value={currentCommand?.oneLiner || ""} readOnly autosize minRows={3} maxRows={8} styles={{ input: { fontFamily: "monospace" } }} />
-                </Stack>
-                <Stack gap="xs">
-                  <Group justify="space-between" align="center">
-                    <Text fw={500}>Run existing binary</Text>
+                    <Text fw={500}>Download binary</Text>
                     <CopyButton value={currentCommand?.binary || ""}>
                       {({ copied, copy }) => (
                         <Button size="xs" variant="subtle" leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />} onClick={copy}>
@@ -444,8 +432,8 @@ export default function NodesPage() {
                 </Stack>
                 <Stack gap="xs">
                   <Group justify="space-between" align="center">
-                    <Text fw={500}>Build from source</Text>
-                    <CopyButton value={currentCommand?.source || ""}>
+                    <Text fw={500}>go install</Text>
+                    <CopyButton value={currentCommand?.goInstall || ""}>
                       {({ copied, copy }) => (
                         <Button size="xs" variant="subtle" leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />} onClick={copy}>
                           {copied ? "Copied" : "Copy"}
@@ -453,9 +441,22 @@ export default function NodesPage() {
                       )}
                     </CopyButton>
                   </Group>
-                  <Textarea value={currentCommand?.source || ""} readOnly autosize minRows={4} maxRows={10} styles={{ input: { fontFamily: "monospace" } }} />
+                  <Textarea value={currentCommand?.goInstall || ""} readOnly autosize minRows={3} maxRows={8} styles={{ input: { fontFamily: "monospace" } }} />
                 </Stack>
-                <Text size="sm" c="dimmed">`Build from source` must run inside the Portlyn repo root.</Text>
+                <Stack gap="xs">
+                  <Group justify="space-between" align="center">
+                    <Text fw={500}>Docker</Text>
+                    <CopyButton value={currentCommand?.docker || ""}>
+                      {({ copied, copy }) => (
+                        <Button size="xs" variant="subtle" leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />} onClick={copy}>
+                          {copied ? "Copied" : "Copy"}
+                        </Button>
+                      )}
+                    </CopyButton>
+                  </Group>
+                  <Textarea value={currentCommand?.docker || ""} readOnly autosize minRows={4} maxRows={10} styles={{ input: { fontFamily: "monospace" } }} />
+                </Stack>
+                <Text size="sm" c="dimmed">The agent stores its state and keys after first run, so the enrollment token is only needed once. The WireGuard tunnel and service forwarding start automatically.</Text>
               </Stack>
             </Card>
 

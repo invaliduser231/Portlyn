@@ -194,6 +194,7 @@ func newIntegrationServer(t *testing.T, mutate ...func(*config.Config)) (*Server
 		userStore,
 		groupStore,
 		store.NewNodeStore(db),
+		store.NewClientStore(db),
 		store.NewDomainStore(db),
 		store.NewCertificateStore(db),
 		store.NewDNSProviderStore(db),

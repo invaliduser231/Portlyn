@@ -116,7 +116,7 @@ func (e *stubErr) Error() string { return e.msg }
 
 func TestManagerEnsureServerKeyGeneratesOnce(t *testing.T) {
 	settings := &stubSettingsRepo{settings: &domain.AppSettings{}}
-	mgr := NewManager(newStubNodeRepo(), settings)
+	mgr := NewManager(newStubNodeRepo(), nil, settings)
 	first, err := mgr.EnsureServerKey(context.Background())
 	if err != nil {
 		t.Fatalf("ensure: %v", err)
@@ -143,7 +143,7 @@ func TestManagerBootstrapNodeAssignsIPAndBuildsConfig(t *testing.T) {
 		TunnelServerTunnelIP: "10.42.0.1",
 	}}
 	nodes := newStubNodeRepo(&domain.Node{ID: 7, Name: "edge"})
-	mgr := NewManager(nodes, settings)
+	mgr := NewManager(nodes, nil, settings)
 	if _, err := mgr.EnsureServerKey(context.Background()); err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestManagerRevokeNodeFreesIP(t *testing.T) {
 		TunnelServerTunnelIP: "10.42.0.1",
 	}}
 	nodes := newStubNodeRepo(&domain.Node{ID: 1, Name: "n1"})
-	mgr := NewManager(nodes, settings)
+	mgr := NewManager(nodes, nil, settings)
 	if _, err := mgr.EnsureServerKey(context.Background()); err != nil {
 		t.Fatalf("ensure: %v", err)
 	}

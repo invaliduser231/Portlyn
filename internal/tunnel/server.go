@@ -13,7 +13,6 @@ import (
 
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun/netstack"
 
 	"portlyn/internal/domain"
 )
@@ -28,7 +27,7 @@ type Server struct {
 	mu         sync.Mutex
 	options    ServerOptions
 	device     *device.Device
-	net        *netstack.Net
+	net        *NetStack
 	started    bool
 	listenPort int
 	cidr       netip.Prefix
@@ -77,7 +76,7 @@ func (s *Server) Start(ctx context.Context, settings *domain.AppSettings) error 
 		listenPort = 51820
 	}
 
-	tunDevice, netStack, err := netstack.CreateNetTUN([]netip.Addr{tunnelIP}, s.options.DNSServer, s.options.MTU)
+	tunDevice, netStack, err := CreateNetStack([]netip.Addr{tunnelIP}, s.options.MTU)
 	if err != nil {
 		return fmt.Errorf("tunnel: create tun: %w", err)
 	}
@@ -97,6 +96,10 @@ func (s *Server) Start(ctx context.Context, settings *domain.AppSettings) error 
 	if err := dev.Up(); err != nil {
 		dev.Close()
 		return fmt.Errorf("tunnel: bring up: %w", err)
+	}
+	if err := netStack.EnableForwarding(); err != nil {
+		dev.Close()
+		return fmt.Errorf("tunnel: enable forwarding: %w", err)
 	}
 
 	s.device = dev
@@ -128,7 +131,24 @@ func (s *Server) Stop() {
 	s.started = false
 }
 
+type PeerSpec struct {
+	PublicKey  string
+	AllowedIPs []string
+}
+
 func (s *Server) ApplyPeers(peers []domain.Node) error {
+	specs := make([]PeerSpec, 0, len(peers))
+	for _, peer := range peers {
+		ip := strings.TrimSpace(peer.WGTunnelIP)
+		if strings.TrimSpace(peer.WGPublicKey) == "" || ip == "" {
+			continue
+		}
+		specs = append(specs, PeerSpec{PublicKey: peer.WGPublicKey, AllowedIPs: []string{ip + "/32"}})
+	}
+	return s.ApplyPeerSpecs(specs)
+}
+
+func (s *Server) ApplyPeerSpecs(specs []PeerSpec) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.started || s.device == nil {
@@ -136,10 +156,9 @@ func (s *Server) ApplyPeers(peers []domain.Node) error {
 	}
 	var b strings.Builder
 	b.WriteString("replace_peers=true\n")
-	for _, peer := range peers {
-		pub := strings.TrimSpace(peer.WGPublicKey)
-		ip := strings.TrimSpace(peer.WGTunnelIP)
-		if pub == "" || ip == "" {
+	for _, spec := range specs {
+		pub := strings.TrimSpace(spec.PublicKey)
+		if pub == "" || len(spec.AllowedIPs) == 0 {
 			continue
 		}
 		hexKey, err := keyToHex(pub)
@@ -148,7 +167,13 @@ func (s *Server) ApplyPeers(peers []domain.Node) error {
 		}
 		fmt.Fprintf(&b, "public_key=%s\n", hexKey)
 		fmt.Fprintf(&b, "replace_allowed_ips=true\n")
-		fmt.Fprintf(&b, "allowed_ip=%s/32\n", ip)
+		for _, cidr := range spec.AllowedIPs {
+			cidr = strings.TrimSpace(cidr)
+			if cidr == "" {
+				continue
+			}
+			fmt.Fprintf(&b, "allowed_ip=%s\n", cidr)
+		}
 		fmt.Fprintf(&b, "persistent_keepalive_interval=25\n")
 	}
 	return s.device.IpcSet(b.String())

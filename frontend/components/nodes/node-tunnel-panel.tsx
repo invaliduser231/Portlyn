@@ -1,13 +1,13 @@
 "use client";
 
-import { Alert, Badge, Button, Code, CopyButton, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
+import { Badge, Button, Code, Group, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconBolt, IconCopy, IconLink, IconLinkOff } from "@tabler/icons-react";
+import { IconBolt, IconLinkOff } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
-import type { Node, TunnelBootstrapResponse, TunnelStatus } from "@/lib/types";
+import type { Node, TunnelStatus } from "@/lib/types";
 
 const STATUS_COLOR: Record<string, string> = {
   inactive: "gray",
@@ -17,37 +17,10 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function NodeTunnelPanel({ node, onChange }: { node: Node; onChange: (updated: Node) => void }) {
-  const [opened, setOpened] = useState(false);
-  const [config, setConfig] = useState<TunnelBootstrapResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [revoking, setRevoking] = useState(false);
 
   const status = (node.tunnel_status as TunnelStatus) || "inactive";
   const hasTunnel = (node.wg_public_key?.length ?? 0) > 0 && (node.wg_tunnel_ip?.length ?? 0) > 0;
-
-  const bootstrap = async (forceReissue: boolean) => {
-    setLoading(true);
-    try {
-      const response = await apiFetch<TunnelBootstrapResponse>(`/api/v1/nodes/${node.id}/wg-bootstrap`, {
-        method: "POST",
-        body: JSON.stringify({ force_reissue: forceReissue }),
-      });
-      setConfig(response);
-      setOpened(true);
-      onChange({
-        ...node,
-        wg_public_key: response.public_key,
-        wg_tunnel_ip: response.address.split("/")[0],
-        wg_endpoint: response.server_endpoint,
-        tunnel_status: "provisioned",
-      });
-      notifications.show({ color: "success", message: "Tunnel config issued. Save it now — the private key is shown only once." });
-    } catch (err) {
-      notifications.show({ color: "danger", message: err instanceof ApiError ? err.message : "Bootstrap failed." });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const revoke = async () => {
     setRevoking(true);
@@ -77,49 +50,30 @@ export function NodeTunnelPanel({ node, onChange }: { node: Node; onChange: (upd
           <Badge color={STATUS_COLOR[status] || "gray"}>{status}</Badge>
         </Group>
         {hasTunnel ? (
-          <Group gap="xs">
-            <Button size="xs" variant="light" leftSection={<IconLink size={14} />} loading={loading} onClick={() => bootstrap(true)}>
-              Re-issue
-            </Button>
-            <Button size="xs" variant="subtle" color="danger" leftSection={<IconLinkOff size={14} />} loading={revoking} onClick={revoke}>
-              Revoke
-            </Button>
-          </Group>
-        ) : (
-          <Button size="xs" leftSection={<IconLink size={14} />} loading={loading} onClick={() => bootstrap(false)}>
-            Bootstrap tunnel
+          <Button size="xs" variant="subtle" color="danger" leftSection={<IconLinkOff size={14} />} loading={revoking} onClick={revoke}>
+            Revoke
           </Button>
-        )}
+        ) : null}
       </Group>
 
       {hasTunnel ? (
         <Stack gap={4}>
           <Text size="xs" c="dimmed">Tunnel IP</Text>
           <Code>{node.wg_tunnel_ip}</Code>
+          {node.advertised_subnets ? (
+            <>
+              <Text size="xs" c="dimmed">Advertised subnets</Text>
+              <Code>{node.advertised_subnets}</Code>
+            </>
+          ) : null}
           <Text size="xs" c="dimmed">Last handshake</Text>
           <Text size="sm">{formatDateTime(node.wg_last_handshake)}</Text>
         </Stack>
-      ) : null}
-
-      <Modal opened={opened} onClose={() => setOpened(false)} title="Wireguard client config" size="lg">
-        {config ? (
-          <Stack gap="md">
-            <Alert color="warning" variant="light">
-              Save this config now. The private key is not stored on the server and will not be shown again.
-            </Alert>
-            <Textarea value={config.config_text} autosize minRows={10} maxRows={20} readOnly />
-            <Group justify="flex-end">
-              <CopyButton value={config.config_text}>
-                {({ copied, copy }) => (
-                  <Button leftSection={<IconCopy size={14} />} onClick={copy}>
-                    {copied ? "Copied" : "Copy config"}
-                  </Button>
-                )}
-              </CopyButton>
-            </Group>
-          </Stack>
-        ) : null}
-      </Modal>
+      ) : (
+        <Text size="sm" c="dimmed">
+          The tunnel is established automatically when the node agent connects with an enrollment token.
+        </Text>
+      )}
     </Stack>
   );
 }

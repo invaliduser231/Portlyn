@@ -62,6 +62,7 @@ func main() {
 	userStore := store.NewUserStore(db)
 	groupStore := store.NewGroupStore(db)
 	nodeStore := store.NewNodeStore(db)
+	clientStore := store.NewClientStore(db)
 	domainStore := store.NewDomainStore(db)
 	certificateStore := store.NewCertificateStore(db)
 	dnsProviderStore := store.NewDNSProviderStore(db)
@@ -208,7 +209,7 @@ func main() {
 		}
 	}
 
-	tunnelManager := tunnel.NewManager(nodeStore, appSettingsStore)
+	tunnelManager := tunnel.NewManager(nodeStore, clientStore, appSettingsStore)
 	tunnelServer := tunnel.NewServer(tunnel.ServerOptions{MTU: 1420})
 	tunnelManager.AttachServer(tunnelServer)
 	if startSettings, err := appSettingsStore.Get(context.Background()); err == nil && startSettings.TunnelEnabled {
@@ -218,10 +219,8 @@ func main() {
 			logger.Warn("tunnel: reload settings", "error", refreshErr)
 		} else if startErr := tunnelServer.Start(context.Background(), refreshed); startErr != nil {
 			logger.Warn("tunnel: start server", "error", startErr)
-		} else if nodes, listErr := nodeStore.List(context.Background()); listErr == nil {
-			if err := tunnelServer.ApplyPeers(nodes); err != nil {
-				logger.Warn("tunnel: apply peers", "error", err)
-			}
+		} else if err := tunnelManager.ApplyPeers(context.Background()); err != nil {
+			logger.Warn("tunnel: apply peers", "error", err)
 		}
 	}
 
@@ -275,6 +274,7 @@ func main() {
 		userStore,
 		groupStore,
 		nodeStore,
+		clientStore,
 		domainStore,
 		certificateStore,
 		dnsProviderStore,

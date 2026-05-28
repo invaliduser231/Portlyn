@@ -23,7 +23,18 @@ jobs:
         run: |
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -o dist/portlyn-server-linux-amd64 ./cmd/server
-          GOOS=linux GOARCH=amd64 go build -o dist/portlyn-nodeagent-linux-amd64 ./cmd/nodeagent
+
+      - name: Build node agent binaries
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os="${target%/*}"
+            arch="${target#*/}"
+            ext=""
+            if [ "$os" = "windows" ]; then ext=".exe"; fi
+            GOOS="$os" GOARCH="$arch" go build -o "dist/portlyn-nodeagent-$os-$arch$ext" ./cmd/nodeagent
+          done
 
       - name: Create checksums
         run: |
@@ -43,7 +54,7 @@ jobs:
         with:
           files: |
             dist/portlyn-server-linux-amd64
-            dist/portlyn-nodeagent-linux-amd64
+            dist/portlyn-nodeagent-*
             dist/checksums.txt
             dist/checksums.txt.sig
             dist/checksums.txt.pem
@@ -119,4 +130,29 @@ jobs:
           push: true
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
+          provenance: false
+
+      - name: Extract node agent image metadata
+        id: meta_nodeagent
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/invaliduser231/portlyn-nodeagent
+          tags: |
+            type=semver,pattern={{raw}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+          flavor: |
+            latest=true
+
+      - name: Build and push node agent image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile.nodeagent
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta_nodeagent.outputs.tags }}
+          labels: ${{ steps.meta_nodeagent.outputs.labels }}
           provenance: false

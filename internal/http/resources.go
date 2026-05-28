@@ -63,11 +63,22 @@ func (s *Server) handleCreateNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 		writeError(w, stdhttp.StatusBadRequest, "validation_error", "mtls_cert_sha256 is required when heartbeat_auth_mode is mtls")
 		return
 	}
+	if req.AdvertisedSubnets != nil {
+		normalized, err := normalizeSubnetCSV(*req.AdvertisedSubnets)
+		if err != nil {
+			writeError(w, stdhttp.StatusBadRequest, "validation_error", "advertised_subnets must be valid CIDRs")
+			return
+		}
+		item.AdvertisedSubnets = normalized
+	}
 	if err := s.nodes.Create(r.Context(), item); err != nil {
 		s.internalError(w, err)
 		return
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "create", "node", &item.ID, item)
+	if s.tunnel != nil {
+		_ = s.tunnel.ApplyPeers(r.Context())
+	}
 	writeJSON(w, stdhttp.StatusCreated, item)
 }
 
@@ -115,12 +126,23 @@ func (s *Server) handleUpdateNode(w stdhttp.ResponseWriter, r *stdhttp.Request) 
 		writeError(w, stdhttp.StatusBadRequest, "validation_error", "mtls_cert_sha256 is required when heartbeat_auth_mode is mtls")
 		return
 	}
+	if req.AdvertisedSubnets != nil {
+		normalized, err := normalizeSubnetCSV(*req.AdvertisedSubnets)
+		if err != nil {
+			writeError(w, stdhttp.StatusBadRequest, "validation_error", "advertised_subnets must be valid CIDRs")
+			return
+		}
+		item.AdvertisedSubnets = normalized
+	}
 
 	if err := s.nodes.Update(r.Context(), item); err != nil {
 		s.internalError(w, err)
 		return
 	}
 	_ = s.audit.Log(r.Context(), s.currentUserID(r), "update", "node", &item.ID, item)
+	if s.tunnel != nil {
+		_ = s.tunnel.ApplyPeers(r.Context())
+	}
 	writeJSON(w, stdhttp.StatusOK, item)
 }
 

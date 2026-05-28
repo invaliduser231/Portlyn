@@ -29,15 +29,24 @@ type SettingsRepo interface {
 	Upsert(ctx context.Context, settings *domain.AppSettings) error
 }
 
+type ClientRepo interface {
+	List(ctx context.Context) ([]domain.Client, error)
+	Create(ctx context.Context, client *domain.Client) error
+	GetByID(ctx context.Context, id uint) (*domain.Client, error)
+	Update(ctx context.Context, client *domain.Client) error
+	Delete(ctx context.Context, id uint) error
+}
+
 type Manager struct {
 	mu       sync.Mutex
 	nodes    NodeRepo
+	clients  ClientRepo
 	settings SettingsRepo
 	server   *Server
 }
 
-func NewManager(nodes NodeRepo, settings SettingsRepo) *Manager {
-	return &Manager{nodes: nodes, settings: settings}
+func NewManager(nodes NodeRepo, clients ClientRepo, settings SettingsRepo) *Manager {
+	return &Manager{nodes: nodes, clients: clients, settings: settings}
 }
 
 func (m *Manager) AttachServer(server *Server) {
@@ -109,14 +118,32 @@ func (m *Manager) loadPool(ctx context.Context, settings *domain.AppSettings) (*
 		}
 		_ = pool.MarkAllocated(addr)
 	}
+	if m.clients != nil {
+		clients, err := m.clients.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, client := range clients {
+			raw := strings.TrimSpace(client.WGTunnelIP)
+			if raw == "" {
+				continue
+			}
+			addr, err := netip.ParseAddr(raw)
+			if err != nil {
+				continue
+			}
+			_ = pool.MarkAllocated(addr)
+		}
+	}
 	return pool, nil
 }
 
 type BootstrapResult struct {
-	Node            *domain.Node
-	ClientConfig    string
-	ClientBundle    ClientBundle
-	ServerPublicKey string
+	Node              *domain.Node
+	ClientConfig      string
+	ClientBundle      ClientBundle
+	ServerPublicKey   string
+	AdvertisedSubnets []string
 }
 
 func (m *Manager) BootstrapNode(ctx context.Context, nodeID uint, opts BootstrapOptions) (*BootstrapResult, error) {
@@ -148,9 +175,18 @@ func (m *Manager) BootstrapNode(ctx context.Context, nodeID uint, opts Bootstrap
 		return nil, ErrNodeAlreadyProvisioned
 	}
 
-	clientKeys, err := GenerateKeyPair()
-	if err != nil {
-		return nil, err
+	var clientKeys KeyPair
+	if strings.TrimSpace(opts.ClientPublicKey) != "" {
+		if err := ValidatePublicKey(strings.TrimSpace(opts.ClientPublicKey)); err != nil {
+			return nil, fmt.Errorf("invalid client public key: %w", err)
+		}
+		clientKeys = KeyPair{PublicKey: strings.TrimSpace(opts.ClientPublicKey)}
+	} else {
+		generated, err := GenerateKeyPair()
+		if err != nil {
+			return nil, err
+		}
+		clientKeys = generated
 	}
 
 	if strings.TrimSpace(node.WGTunnelIP) != "" {
@@ -193,23 +229,21 @@ func (m *Manager) BootstrapNode(ctx context.Context, nodeID uint, opts Bootstrap
 	if err := m.writeServerConfigLocked(ctx, settings); err != nil {
 		return nil, err
 	}
-	if m.server != nil && m.server.Started() {
-		if nodes, err := m.nodes.List(ctx); err == nil {
-			_ = m.server.ApplyPeers(nodes)
-		}
-	}
+	m.applyPeersLocked(ctx)
 
 	return &BootstrapResult{
-		Node:            node,
-		ClientConfig:    RenderClientConfig(bundle),
-		ClientBundle:    bundle,
-		ServerPublicKey: settings.TunnelServerPublicKey,
+		Node:              node,
+		ClientConfig:      RenderClientConfig(bundle),
+		ClientBundle:      bundle,
+		ServerPublicKey:   settings.TunnelServerPublicKey,
+		AdvertisedSubnets: splitCSV(node.AdvertisedSubnets),
 	}, nil
 }
 
 type BootstrapOptions struct {
 	ForceReissue     bool
 	ClientAllowedIPs []string
+	ClientPublicKey  string
 }
 
 func (m *Manager) WriteServerConfig(ctx context.Context) error {
@@ -293,10 +327,217 @@ func (m *Manager) RevokeNode(ctx context.Context, nodeID uint) error {
 	if err := m.writeServerConfigLocked(ctx, settings); err != nil {
 		return err
 	}
-	if m.server != nil && m.server.Started() {
-		if nodes, err := m.nodes.List(ctx); err == nil {
-			_ = m.server.ApplyPeers(nodes)
+	m.applyPeersLocked(ctx)
+	return nil
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			out = append(out, trimmed)
 		}
 	}
+	return out
+}
+
+func (m *Manager) BuildPeerSpecs(ctx context.Context) ([]PeerSpec, error) {
+	nodes, err := m.nodes.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	specs := make([]PeerSpec, 0, len(nodes))
+	for _, node := range nodes {
+		pub := strings.TrimSpace(node.WGPublicKey)
+		ip := strings.TrimSpace(node.WGTunnelIP)
+		if pub == "" || ip == "" {
+			continue
+		}
+		allowed := []string{ip + "/32"}
+		allowed = append(allowed, splitCSV(node.AdvertisedSubnets)...)
+		specs = append(specs, PeerSpec{PublicKey: pub, AllowedIPs: allowed})
+	}
+	if m.clients != nil {
+		clients, err := m.clients.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, client := range clients {
+			pub := strings.TrimSpace(client.WGPublicKey)
+			ip := strings.TrimSpace(client.WGTunnelIP)
+			if pub == "" || ip == "" || !client.Enabled {
+				continue
+			}
+			specs = append(specs, PeerSpec{PublicKey: pub, AllowedIPs: []string{ip + "/32"}})
+		}
+	}
+	return specs, nil
+}
+
+func (m *Manager) applyPeersLocked(ctx context.Context) {
+	if m.server == nil || !m.server.Started() {
+		return
+	}
+	specs, err := m.BuildPeerSpecs(ctx)
+	if err != nil {
+		return
+	}
+	_ = m.server.ApplyPeerSpecs(specs)
+}
+
+func (m *Manager) ApplyPeers(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	specs, err := m.BuildPeerSpecs(ctx)
+	if err != nil {
+		return err
+	}
+	if m.server == nil || !m.server.Started() {
+		return nil
+	}
+	return m.server.ApplyPeerSpecs(specs)
+}
+
+func (m *Manager) ProvisionClient(ctx context.Context, name, description string, allowedNodeIDs []uint) (*ClientBundle, *domain.Client, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	settings, err := m.settings.Get(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if strings.TrimSpace(settings.TunnelServerPublicKey) == "" || strings.TrimSpace(settings.TunnelServerEndpoint) == "" {
+		return nil, nil, ErrInvalidServerSettings
+	}
+
+	pool, err := m.loadPool(ctx, settings)
+	if err != nil {
+		return nil, nil, err
+	}
+	assignedIP, err := pool.Allocate()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	allowedSubnets, err := m.subnetsForNodes(ctx, allowedNodeIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keys, err := GenerateKeyPair()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	bundle := ClientBundle{
+		PrivateKey:      keys.PrivateKey,
+		PublicKey:       keys.PublicKey,
+		Address:         assignedIP.String() + "/32",
+		ServerPublicKey: settings.TunnelServerPublicKey,
+		ServerEndpoint:  settings.TunnelServerEndpoint,
+		AllowedIPs:      allowedSubnets,
+		Keepalive:       25,
+	}
+
+	client := &domain.Client{
+		Name:           strings.TrimSpace(name),
+		Description:    strings.TrimSpace(description),
+		WGPublicKey:    keys.PublicKey,
+		WGTunnelIP:     assignedIP.String(),
+		WGAllowedIPs:   strings.Join(allowedSubnets, ","),
+		AllowedNodeIDs: joinUintCSV(allowedNodeIDs),
+		Enabled:        true,
+		TunnelStatus:   domain.TunnelStatusProvisioned,
+	}
+	if err := m.clients.Create(ctx, client); err != nil {
+		pool.Release(assignedIP)
+		return nil, nil, err
+	}
+
+	m.applyPeersLocked(ctx)
+	return &bundle, client, nil
+}
+
+func (m *Manager) RotateClient(ctx context.Context, clientID uint) (*ClientBundle, *domain.Client, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	settings, err := m.settings.Get(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	client, err := m.clients.GetByID(ctx, clientID)
+	if err != nil {
+		return nil, nil, err
+	}
+	keys, err := GenerateKeyPair()
+	if err != nil {
+		return nil, nil, err
+	}
+	allowedSubnets := splitCSV(client.WGAllowedIPs)
+	client.WGPublicKey = keys.PublicKey
+	client.TunnelStatus = domain.TunnelStatusProvisioned
+	if err := m.clients.Update(ctx, client); err != nil {
+		return nil, nil, err
+	}
+	bundle := ClientBundle{
+		PrivateKey:      keys.PrivateKey,
+		PublicKey:       keys.PublicKey,
+		Address:         client.WGTunnelIP + "/32",
+		ServerPublicKey: settings.TunnelServerPublicKey,
+		ServerEndpoint:  settings.TunnelServerEndpoint,
+		AllowedIPs:      allowedSubnets,
+		Keepalive:       25,
+	}
+	m.applyPeersLocked(ctx)
+	return &bundle, client, nil
+}
+
+func (m *Manager) RevokeClient(ctx context.Context, clientID uint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.clients.Delete(ctx, clientID); err != nil {
+		return err
+	}
+	m.applyPeersLocked(ctx)
 	return nil
+}
+
+func (m *Manager) subnetsForNodes(ctx context.Context, nodeIDs []uint) ([]string, error) {
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+	wanted := make(map[uint]struct{}, len(nodeIDs))
+	for _, id := range nodeIDs {
+		wanted[id] = struct{}{}
+	}
+	nodes, err := m.nodes.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{})
+	out := make([]string, 0)
+	for _, node := range nodes {
+		if _, ok := wanted[node.ID]; !ok {
+			continue
+		}
+		for _, subnet := range splitCSV(node.AdvertisedSubnets) {
+			if _, dup := seen[subnet]; dup {
+				continue
+			}
+			seen[subnet] = struct{}{}
+			out = append(out, subnet)
+		}
+	}
+	return out, nil
+}
+
+func joinUintCSV(values []uint) string {
+	parts := make([]string, 0, len(values))
+	for _, v := range values {
+		parts = append(parts, fmt.Sprintf("%d", v))
+	}
+	return strings.Join(parts, ",")
 }
