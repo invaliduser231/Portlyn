@@ -19,15 +19,15 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         navbar={{ width: { base: 240, lg: 272 }, breakpoint: "sm", collapsed: { mobile: !opened } }}
         padding={{ base: "md", md: "xl" }}
       >
-        <AppShell.Header style={{ background: "rgba(31,31,35,0.78)", backdropFilter: "blur(12px)" }}>
+        <AppShell.Header style={{ background: "rgba(23,24,29,0.8)", backdropFilter: "blur(12px)", borderBottom: "1px solid var(--portlyn-border)" }}>
           <Topbar opened={opened} onToggle={toggle} />
         </AppShell.Header>
 
         <AppShell.Navbar
           p={0}
           style={{
-            background: "linear-gradient(180deg, #1e1f25 0%, #16171c 100%)",
-            borderRight: "1px solid rgba(255,255,255,0.04)"
+            background: "#1a1b21",
+            borderRight: "1px solid var(--portlyn-border)"
           }}
         >
           <Sidebar onNavigate={close} />

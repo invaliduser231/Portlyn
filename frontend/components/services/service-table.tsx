@@ -44,13 +44,13 @@ export function ServiceTable({
                   Rev {service.deployment_revision}
                 </Text>
               </Table.Td>
-              <Table.Td>{serviceHostname(service) || `#${service.domain_id}`}</Table.Td>
+              <Table.Td>{serviceHostname(service) || service.domain?.name || "-"}</Table.Td>
               <Table.Td>{service.path}</Table.Td>
-              <Table.Td><Text size="sm" c="#c9d2df">{service.target_url}</Text></Table.Td>
+              <Table.Td><Text size="sm" c="dimmed">{service.target_url}</Text></Table.Td>
               <Table.Td>
                 <AccessModeBadge value={service.access_mode} />
                 {service.use_group_policy ? (
-                  <Text c="#7e8795" size="xs" mt={4}>
+                  <Text c="dimmed" size="xs" mt={4}>
                     Inherited
                   </Text>
                 ) : null}
@@ -58,7 +58,7 @@ export function ServiceTable({
               <Table.Td>
                 <AccessMethodBadge value={service.effective_access_method || service.access_method || "session"} />
                 {service.inherited_from_group && !service.service_overrides_group ? (
-                  <Text c="#7e8795" size="xs" mt={4}>
+                  <Text c="dimmed" size="xs" mt={4}>
                     From {service.inherited_from_group.name}
                   </Text>
                 ) : null}
@@ -68,7 +68,7 @@ export function ServiceTable({
               </Table.Td>
               <Table.Td>
                 <StatusBadge status={service.service_status || (service.last_deployed_at ? "healthy" : "pending")} />
-                <Text c="#7e8795" size="xs" mt={4}>{formatDateTime(service.last_deployed_at)}</Text>
+                <Text c="dimmed" size="xs" mt={4}>{formatDateTime(service.last_deployed_at)}</Text>
                 {service.service_status_error ? <Text c="danger" size="xs" mt={4}>{service.service_status_error}</Text> : null}
               </Table.Td>
               <Table.Td>

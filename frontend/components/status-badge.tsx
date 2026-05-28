@@ -26,14 +26,18 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function accessColor(value: string): string {
+  if (value === "public") return "info";
+  if (value === "authenticated") return "brand";
+  return "warning";
+}
+
 export function AuthPolicyBadge({ value }: { value: AuthPolicy }) {
-  const color = value === "public" ? "info" : value === "authenticated" ? "brand" : "warning";
-  return <Badge color={color}>{value}</Badge>;
+  return <Badge color={accessColor(value)}>{value}</Badge>;
 }
 
 export function AccessModeBadge({ value }: { value: AccessMode }) {
-  const color = value === "public" ? "info" : value === "authenticated" ? "brand" : "warning";
-  return <Badge color={color}>{value}</Badge>;
+  return <Badge color={accessColor(value)}>{value}</Badge>;
 }
 
 export function AccessMethodBadge({ value }: { value: AccessMethod | undefined }) {

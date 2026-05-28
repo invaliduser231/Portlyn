@@ -40,14 +40,14 @@ export function UserTable({
             <Table.Tr key={user.id}>
               <Table.Td>
                 <Text component={Link} href={`/users/detail?id=${user.id}`} fw={500}>{user.email}</Text>
-                {user.id === currentUserId ? <Text c="#7e8795" size="xs">Current session</Text> : null}
+                {user.id === currentUserId ? <Text c="dimmed" size="xs">Current session</Text> : null}
               </Table.Td>
               <Table.Td>
                 <Text tt="capitalize">{user.auth_provider}</Text>
                 {user.auth_provider === "oidc" ? (
-                  <Text c="#7e8795" size="xs">{user.auth_issuer || "SSO provider"}</Text>
+                  <Text c="dimmed" size="xs">{user.auth_issuer || "SSO provider"}</Text>
                 ) : (
-                  <Text c="#7e8795" size="xs">Local password</Text>
+                  <Text c="dimmed" size="xs">Local password</Text>
                 )}
               </Table.Td>
               <Table.Td>{user.role}</Table.Td>

@@ -10,6 +10,7 @@ import { AdminOnly } from "@/components/admin-only";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Group as GroupItem } from "@/lib/types";
 
@@ -90,9 +91,10 @@ export default function GroupsPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <Group justify="flex-end">
-          <Button onClick={() => beginEdit()}>New group</Button>
-        </Group>
+        <PageHeader
+          description="User groups for restricting service access to specific members."
+          action={<Button onClick={() => beginEdit()}>New group</Button>}
+        />
 
         {error ? <ErrorState title="Failed to load groups" message={error} onRetry={() => void loadData()} /> : null}
 

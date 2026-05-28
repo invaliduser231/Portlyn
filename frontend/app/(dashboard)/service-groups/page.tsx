@@ -24,6 +24,7 @@ import { AdminOnly } from "@/components/admin-only";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { AccessMethodBadge } from "@/components/status-badge";
 import { buildServiceGroupRequestPayload, defaultServiceGroupPayload } from "@/lib/access-control";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -140,9 +141,10 @@ export default function ServiceGroupsPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <MantineGroup justify="flex-end">
-          <Button onClick={() => beginEdit()}>New service group</Button>
-        </MantineGroup>
+        <PageHeader
+          description="Bundle services to apply a shared access policy across all of them."
+          action={<Button onClick={() => beginEdit()}>New service group</Button>}
+        />
 
         {error ? <ErrorState title="Failed to load service groups" message={error} onRetry={() => void loadData()} /> : null}
 

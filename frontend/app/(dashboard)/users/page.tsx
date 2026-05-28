@@ -9,6 +9,7 @@ import { AdminOnly } from "@/components/admin-only";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { useAuth } from "@/components/providers";
 import { UserForm } from "@/components/users/user-form";
 import { UserTable } from "@/components/users/user-table";
@@ -117,31 +118,32 @@ export default function UsersPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <Group justify="flex-end">
-          <Button onClick={() => { setSelectedUser(null); open(); }}>New User</Button>
-        </Group>
-
-        <Group grow>
-          <TextInput placeholder="Filter by email" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
-          <Select
-            data={[
-              { value: "", label: "All roles" },
-              { value: "admin", label: "admin" },
-              { value: "viewer", label: "viewer" }
-            ]}
-            value={roleFilter}
-            onChange={(value) => setRoleFilter((value || "") as UserRole | "")}
-          />
-          <Select
-            data={[
-              { value: "", label: "All statuses" },
-              { value: "active", label: "active" },
-              { value: "inactive", label: "inactive" }
-            ]}
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value || "")}
-          />
-        </Group>
+        <PageHeader
+          description="Manage who can sign in and what role they hold."
+          action={<Button onClick={() => { setSelectedUser(null); open(); }}>New User</Button>}
+        >
+          <Group grow>
+            <TextInput placeholder="Search by email" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+            <Select
+              data={[
+                { value: "", label: "All roles" },
+                { value: "admin", label: "admin" },
+                { value: "viewer", label: "viewer" }
+              ]}
+              value={roleFilter}
+              onChange={(value) => setRoleFilter((value || "") as UserRole | "")}
+            />
+            <Select
+              data={[
+                { value: "", label: "All statuses" },
+                { value: "active", label: "active" },
+                { value: "inactive", label: "inactive" }
+              ]}
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value || "")}
+            />
+          </Group>
+        </PageHeader>
 
         {error ? <ErrorState title="Failed to load users" message={error} onRetry={() => void loadUsers()} /> : null}
 

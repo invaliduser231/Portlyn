@@ -1,12 +1,12 @@
 "use client";
 
-import { Badge, Button, Card, Group, Loader, Progress, Stack, Table, Text, Title } from "@mantine/core";
+import { Badge, Button, Card, Group, Loader, Progress, Stack, Table, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconShieldCheck } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AdminOnly } from "@/components/admin-only";
+import { PageHeader } from "@/components/layout/page-header";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import type { ExposureReport, Service } from "@/lib/types";
@@ -69,14 +69,14 @@ export default function ExposureOverviewPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <Group justify="space-between" align="flex-start">
-          <Title order={2}>
-            <Group gap="xs"><IconShieldCheck size={20} /> Exposure Overview</Group>
-          </Title>
-          <Button variant="light" loading={scanningAll} onClick={() => void scanAll()} disabled={Object.keys(services).length === 0}>
-            Scan all services
-          </Button>
-        </Group>
+        <PageHeader
+          description="Scans each service for DNS, TLS and access risks and scores its public exposure."
+          action={
+            <Button variant="light" loading={scanningAll} onClick={() => void scanAll()} disabled={Object.keys(services).length === 0}>
+              Scan all services
+            </Button>
+          }
+        />
 
         {loading ? (
           <Stack align="center" py="md"><Loader color="brand" /></Stack>

@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { NodeForm } from "@/components/nodes/node-form";
 import { NodeGrid } from "@/components/nodes/node-grid";
+import { PageHeader } from "@/components/layout/page-header";
 import { useAuth } from "@/components/providers";
 import { apiFetch, ApiError, getApiBaseUrl } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -285,14 +286,12 @@ export default function NodesPage() {
 
   return (
     <Stack gap="lg">
+      <PageHeader
+        description="Agents installed on remote machines that expose their local services over the WireGuard tunnel."
+        action={canManage ? <Button onClick={() => { setSelectedNode(null); openInstall(); }}>Install Node</Button> : undefined}
+      />
       {canManage ? (
         <Stack gap="md">
-          <Group justify="space-between">
-            <Text fw={600}>Node enrollment</Text>
-            <Group gap="sm">
-              <Button onClick={() => { setSelectedNode(null); openInstall(); }}>Install Node</Button>
-            </Group>
-          </Group>
           <Card withBorder>
             <Stack gap="sm">
               <Group justify="space-between" align="center">
@@ -354,7 +353,7 @@ export default function NodesPage() {
         </Stack>
       ) : null}
 
-      <TextInput placeholder="Filter nodes" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+      <TextInput placeholder="Search nodes" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
       {error ? <ErrorState title="Failed to load nodes" message={error} onRetry={() => void loadNodes()} /> : null}
 
       {isLoading ? (
@@ -400,7 +399,7 @@ export default function NodesPage() {
                   <Text size="sm">Node name: {installNodeName}</Text>
                   <Text size="sm">Enrollment token: {latestToken.name}</Text>
                   <Text size="sm">Created: {formatDateTime(latestToken.created_at)}</Text>
-                  {connectedNode ? <Text size="sm">Connected as node #{connectedNode.id} with status {connectedNode.status}</Text> : null}
+                  {connectedNode ? <Text size="sm">Connected as {connectedNode.name} with status {connectedNode.status}</Text> : null}
                 </div>
                 {!connectedNode ? <Loader size="sm" color="brand" /> : <Badge color="success" leftSection={<IconCheck size={12} />}>Connected</Badge>}
               </Group>

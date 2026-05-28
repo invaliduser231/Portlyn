@@ -17,13 +17,13 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconTrash, IconWebhook } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
 import { AdminOnly } from "@/components/admin-only";
+import { PageHeader } from "@/components/layout/page-header";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import type { AuditWebhook } from "@/lib/types";
@@ -166,12 +166,10 @@ export default function AuditWebhooksPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <Group justify="space-between" align="flex-start">
-          <Title order={2}>
-            <Group gap="xs"><IconWebhook size={20} /> Audit Webhooks</Group>
-          </Title>
-          <Button leftSection={<IconPlus size={14} />} onClick={openCreate}>New webhook</Button>
-        </Group>
+        <PageHeader
+          description="Forward audit events to Slack, Discord, ntfy or any HMAC-signed JSON endpoint."
+          action={<Button leftSection={<IconPlus size={14} />} onClick={openCreate}>New webhook</Button>}
+        />
 
         {loading ? (
           <Stack align="center" py="md"><Loader color="brand" /></Stack>

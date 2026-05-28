@@ -22,7 +22,7 @@ export function ConfirmDialog({
   return (
     <Modal opened={isOpen} onClose={onClose} title={title} centered>
       <Stack gap="lg">
-        <Text size="sm" c="#aab3c2">
+        <Text size="sm" c="dimmed">
           {description}
         </Text>
         <Group justify="flex-end">

@@ -18,10 +18,10 @@ export function ErrorState({
       title={title}
       color="gray"
       variant="light"
-      styles={{ root: { background: "rgba(255,255,255,0.03)" }, title: { color: "#f4f7fb" } }}
+      styles={{ root: { background: "var(--portlyn-surface-raised)" }, title: { color: "var(--portlyn-text)" } }}
     >
       <Stack gap="sm">
-        <Text size="sm" c="#aab3c2">{message}</Text>
+        <Text size="sm" c="dimmed">{message}</Text>
         {onRetry ? (
           <Group>
             <Button size="xs" variant="subtle" color="gray" onClick={onRetry}>

@@ -10,6 +10,7 @@ import { CertificateTable } from "@/components/certificates/certificate-table";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { useAuth } from "@/components/providers";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -154,29 +155,30 @@ export default function CertificatesPage() {
   const failedCertificates = certificates.filter((item) => item.status === "failed");
   return (
     <Stack gap="lg">
-      {canManage ? (
-        <Group justify="flex-end">
+      <PageHeader
+        description="TLS certificates issued via ACME or imported, with auto-renew status."
+        action={canManage ? (
           <Button onClick={() => { setSelectedCertificate(null); open(); }} disabled={domains.length === 0}>
             New Certificate
           </Button>
+        ) : undefined}
+      >
+        <Group grow>
+          <TextInput placeholder="Search certificates" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+          <Select
+            data={[
+              { value: "", label: "All statuses" },
+              { value: "pending", label: "pending" },
+              { value: "issued", label: "issued" },
+              { value: "failed", label: "failed" },
+              { value: "expiring_soon", label: "expiring soon" },
+              { value: "renewing", label: "renewing" }
+            ]}
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value || "")}
+          />
         </Group>
-      ) : null}
-
-      <Group grow>
-        <TextInput placeholder="Filter certificates" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
-        <Select
-          data={[
-            { value: "", label: "All statuses" },
-            { value: "pending", label: "pending" },
-            { value: "issued", label: "issued" },
-            { value: "failed", label: "failed" },
-            { value: "expiring_soon", label: "expiring soon" },
-            { value: "renewing", label: "renewing" }
-          ]}
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value || "")}
-        />
-      </Group>
+      </PageHeader>
 
       {failedCertificates.length > 0 || expiringSoon.length > 0 ? (
         <Alert color="warning" variant="light" title="Certificate attention needed">

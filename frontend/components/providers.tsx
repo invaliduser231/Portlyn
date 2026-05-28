@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Button, Center, Loader, MantineProvider, Modal, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Avatar, Button, Center, Loader, MantineProvider, Modal, PasswordInput, Stack, Text, TextInput, type CSSVariablesResolver } from "@mantine/core";
 import { Notifications, notifications } from "@mantine/notifications";
 import {
   createContext,
@@ -36,9 +36,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const cssVariablesResolver: CSSVariablesResolver = () => ({
+  variables: {},
+  light: {},
+  dark: {
+    "--mantine-color-dimmed": "var(--portlyn-text-dimmed)",
+    "--mantine-color-text": "var(--portlyn-text)"
+  }
+});
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <MantineProvider theme={theme} defaultColorScheme="dark">
+    <MantineProvider theme={theme} defaultColorScheme="dark" cssVariablesResolver={cssVariablesResolver}>
       <Notifications position="top-right" />
       <AuthProvider>{children}</AuthProvider>
     </MantineProvider>

@@ -78,7 +78,7 @@ export function CertificateTable({
               <Table.Td>{formatDateTime(certificate.last_checked_at)}</Table.Td>
               <Table.Td>{certificate.dns_provider?.name || "-"}</Table.Td>
               <Table.Td>{certificate.is_auto_renew ? "Enabled" : "Disabled"}</Table.Td>
-              <Table.Td><Text c="#7e8795" size="sm">{certificate.last_error || "-"}</Text></Table.Td>
+              <Table.Td><Text c="dimmed" size="sm">{certificate.last_error || "-"}</Text></Table.Td>
               {canManage ? (
                 <Table.Td>
                   <Stack align="flex-end" gap="xs">

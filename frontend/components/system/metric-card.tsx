@@ -15,9 +15,9 @@ export function MetricCard({
   accent?: string;
 }) {
   return (
-    <Card withBorder radius="md" p="lg" style={{ background: "rgba(255,255,255,0.02)" }}>
+    <Card withBorder radius="md" p="lg">
       <Stack gap={6}>
-        <Text size="xs" tt="uppercase" fw={700} c="#7e8795">
+        <Text size="xs" tt="uppercase" fw={700} c="dimmed">
           {label}
         </Text>
         <Group align="baseline" gap="xs">

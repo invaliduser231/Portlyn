@@ -71,7 +71,7 @@ export function NodeGrid({
                 </div>
                 <div>
                   <Text c="dimmed" size="xs">Enrollment</Text>
-                  <Text size="sm">{node.enrollment_token_id ? `token #${node.enrollment_token_id}` : "manual"}</Text>
+                  <Text size="sm">{node.enrollment_token_id ? "Enrollment token" : "Manual"}</Text>
                 </div>
                 <div>
                   <Text c="dimmed" size="xs">Heartbeat auth</Text>
@@ -87,7 +87,15 @@ export function NodeGrid({
                 </div>
                 <div>
                   <Text c="dimmed" size="xs">Last heartbeat result</Text>
-                  <Text size="sm">{node.last_heartbeat_code || 0} {node.last_heartbeat_error || ""}</Text>
+                  <Text size="sm">
+                    {node.last_heartbeat_error
+                      ? node.last_heartbeat_error
+                      : node.last_heartbeat_code && node.last_heartbeat_code < 400
+                        ? "OK"
+                        : node.last_heartbeat_code
+                          ? `Error ${node.last_heartbeat_code}`
+                          : "—"}
+                  </Text>
                 </div>
               </SimpleGrid>
 

@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/error-state";
 import { useAuth } from "@/components/providers";
 import { ServiceTable } from "@/components/services/service-table";
 import { ServiceWizard } from "@/components/services/service-wizard";
+import { PageHeader } from "@/components/layout/page-header";
 import { accessMethodLabel, buildServiceRequestPayload, legacyAuthPolicyFromAccessMode } from "@/lib/access-control";
 import { apiFetch, ApiError } from "@/lib/api";
 import { serviceHostname } from "@/lib/service-host";
@@ -122,32 +123,36 @@ export default function ServicesPage() {
     }
   };
 
+  const filters = (
+    <Group grow align="end">
+      <TextInput placeholder="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
+      <Select
+        data={[
+          { value: "all", label: "All access modes" },
+          { value: "public", label: "public" },
+          { value: "authenticated", label: "authenticated" },
+          { value: "restricted", label: "restricted" }
+        ]}
+        value={accessMode}
+        onChange={(value) => setAccessMode((value || "all") as "all" | AccessMode)}
+      />
+    </Group>
+  );
+
   return (
     <Stack gap="lg">
       {canManage ? (
-        <Group justify="flex-end">
-          <Button onClick={open} disabled={domains.length === 0 && !isLoading}>New Service</Button>
-        </Group>
+        <PageHeader
+          description="Map hostnames to upstream services and control who can reach them."
+          action={<Button onClick={open} disabled={domains.length === 0 && !isLoading}>New Service</Button>}
+        >
+          {filters}
+        </PageHeader>
       ) : (
-        <Stack gap={4}>
-          <Text fw={600}>Your services</Text>
-          <Text size="sm" c="dimmed">Only applications you can access are listed here.</Text>
-        </Stack>
+        <PageHeader description="Only applications you can access are listed here.">
+          {filters}
+        </PageHeader>
       )}
-
-      <Group grow align="end">
-        <TextInput placeholder="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
-        <Select
-          data={[
-            { value: "all", label: "All access modes" },
-            { value: "public", label: "public" },
-            { value: "authenticated", label: "authenticated" },
-            { value: "restricted", label: "restricted" }
-          ]}
-          value={accessMode}
-          onChange={(value) => setAccessMode((value || "all") as "all" | AccessMode)}
-        />
-      </Group>
 
       {error ? <ErrorState title="Failed to load services" message={error} onRetry={() => void loadData()} /> : null}
 

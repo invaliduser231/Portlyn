@@ -10,6 +10,7 @@ import { DomainForm } from "@/components/domains/domain-form";
 import { DomainTable } from "@/components/domains/domain-table";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { useAuth } from "@/components/providers";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Domain, DomainPayload } from "@/lib/types";
@@ -91,13 +92,12 @@ export default function DomainsPage() {
 
   return (
     <Stack gap="lg">
-      {canManage ? (
-        <Group justify="flex-end">
-          <Button onClick={() => { setSelectedDomain(null); open(); }}>New Domain</Button>
-        </Group>
-      ) : null}
-
-      <TextInput placeholder="Filter domains" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+      <PageHeader
+        description="Domains and subdomains Portlyn can issue certificates for and route."
+        action={canManage ? <Button onClick={() => { setSelectedDomain(null); open(); }}>New Domain</Button> : undefined}
+      >
+        <TextInput placeholder="Search domains" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+      </PageHeader>
 
       {error ? <ErrorState title="Failed to load domains" message={error} onRetry={() => void loadDomains()} /> : null}
 

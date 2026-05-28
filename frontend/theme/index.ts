@@ -24,19 +24,22 @@ const variantColorResolver: VariantColorsResolver = (input) => {
   return resolved;
 };
 
+const fontStack = "var(--font-inter), Segoe UI, Arial, sans-serif";
+
 const theme = createTheme({
   primaryColor: "brand",
   primaryShade: 5,
   autoContrast: true,
+  focusRing: "auto",
   variantColorResolver,
   defaultRadius: "lg",
-  fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+  fontFamily: fontStack,
   headings: {
-    fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+    fontFamily: fontStack,
     fontWeight: "600",
     sizes: {
-      h1: { fontSize: "2rem", lineHeight: "1.05" },
-      h2: { fontSize: "1.5rem", lineHeight: "1.1" },
+      h1: { fontSize: "2rem", lineHeight: "1.05", fontWeight: "650" },
+      h2: { fontSize: "1.5rem", lineHeight: "1.15" },
       h3: { fontSize: "1.125rem", lineHeight: "1.2" }
     }
   },
@@ -137,7 +140,7 @@ const theme = createTheme({
     AppShell: {
       styles: {
         main: {
-          background: "#17181d"
+          background: "var(--portlyn-app-bg)"
         }
       }
     },
@@ -148,8 +151,9 @@ const theme = createTheme({
       },
       styles: {
         root: {
-          backgroundColor: "#23242b",
-          boxShadow: "0 14px 36px -28px rgba(0, 0, 0, 0.7)"
+          backgroundColor: "var(--portlyn-surface)",
+          border: "1px solid var(--portlyn-border)",
+          boxShadow: "0 1px 2px rgba(0, 0, 0, 0.3)"
         }
       }
     },
@@ -160,8 +164,9 @@ const theme = createTheme({
       },
       styles: {
         root: {
-          backgroundColor: "#23242b",
-          boxShadow: "0 14px 36px -28px rgba(0, 0, 0, 0.7)"
+          backgroundColor: "var(--portlyn-surface)",
+          border: "1px solid var(--portlyn-border)",
+          boxShadow: "0 1px 2px rgba(0, 0, 0, 0.3)"
         }
       }
     },
@@ -182,15 +187,15 @@ const theme = createTheme({
       },
       styles: {
         root: {
-          borderRadius: "12px",
-          color: "#9aa3b2"
+          borderRadius: "10px",
+          color: "var(--portlyn-text-muted)"
         },
         label: {
           fontSize: "0.9rem",
           fontWeight: 500
         },
         section: {
-          color: "#7e8795"
+          color: "var(--portlyn-text-dimmed)"
         }
       }
     },
@@ -233,14 +238,15 @@ const theme = createTheme({
         },
         th: {
           borderBottom: "none",
-          color: "#7e8795",
+          color: "var(--portlyn-text-dimmed)",
           fontSize: "0.7rem",
           fontWeight: 600,
           letterSpacing: "0.08em",
           textTransform: "uppercase"
         },
         td: {
-          borderTop: "1px solid rgba(255, 255, 255, 0.04)"
+          borderTop: "1px solid var(--portlyn-border)",
+          fontVariantNumeric: "tabular-nums"
         },
         tr: {
           backgroundColor: "transparent"
@@ -263,21 +269,22 @@ const theme = createTheme({
     Modal: {
       styles: {
         content: {
-          backgroundColor: "#2c2d35",
-          boxShadow: "0 24px 60px -30px rgba(0, 0, 0, 0.85)"
+          backgroundColor: "var(--portlyn-surface)",
+          border: "1px solid var(--portlyn-border)",
+          boxShadow: "0 16px 48px -24px rgba(0, 0, 0, 0.7)"
         },
         header: {
-          backgroundColor: "#292a2d"
+          backgroundColor: "var(--portlyn-surface)"
         }
       }
     },
     Drawer: {
       styles: {
         content: {
-          backgroundColor: "#292a2d"
+          backgroundColor: "var(--portlyn-surface)"
         },
         header: {
-          backgroundColor: "#292a2d"
+          backgroundColor: "var(--portlyn-surface)"
         },
         body: {
           paddingTop: "0.25rem"

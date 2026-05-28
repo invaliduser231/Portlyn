@@ -50,7 +50,7 @@ export function Topbar({ opened, onToggle }: { opened: boolean; onToggle: () => 
               <Text size="sm" fw={600}>
                 {user?.email}
               </Text>
-              <Text size="xs" c="#7e8795" tt="capitalize">
+              <Text size="xs" c="dimmed" tt="capitalize">
                 {user?.role}
               </Text>
             </Stack>

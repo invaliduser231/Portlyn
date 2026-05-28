@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import type { DNSProvider, DNSProviderPayload } from "@/lib/types";
@@ -117,12 +118,10 @@ export default function DNSProvidersPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Text fw={700} fz="xl">DNS Providers</Text>
-        </div>
-        <Button onClick={() => { setSelected(null); open(); }}>New Provider</Button>
-      </Group>
+      <PageHeader
+        description="Credentials for DNS-01 ACME challenges and automated record management."
+        action={<Button onClick={() => { setSelected(null); open(); }}>New Provider</Button>}
+      />
 
       {error ? <ErrorState title="Failed to load DNS providers" message={error} onRetry={() => void load()} /> : null}
 

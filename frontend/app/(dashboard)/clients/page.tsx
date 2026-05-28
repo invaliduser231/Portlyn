@@ -15,8 +15,7 @@ import {
   Table,
   Text,
   TextInput,
-  Textarea,
-  Title
+  Textarea
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -28,6 +27,7 @@ import { AdminOnly } from "@/components/admin-only";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { apiFetch, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import type { MeshClient, MeshClientConfigResponse, Node } from "@/lib/types";
@@ -144,14 +144,10 @@ export default function ClientsPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Title order={2}>Clients</Title>
-          <Button onClick={openDrawer}>Add client</Button>
-        </Group>
-
-        <Text size="sm" c="dimmed">
-          Roaming devices that join the mesh with the official WireGuard app. Each client reaches the LAN subnets of the nodes you select.
-        </Text>
+        <PageHeader
+          description="Roaming devices that join the mesh with the official WireGuard app. Each client reaches the LAN subnets of the nodes you select."
+          action={<Button onClick={openDrawer}>Add client</Button>}
+        />
 
         {error ? <ErrorState title="Failed to load clients" message={error} onRetry={() => void load()} /> : null}
 

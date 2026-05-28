@@ -94,7 +94,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             }
             return (
               <Stack key={section} gap={2}>
-                <Text px={10} size="xs" fw={600} tt="uppercase" c="#667085" style={{ letterSpacing: "0.08em" }}>
+                <Text px={10} size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.08em" }}>
                   {section}
                 </Text>
                 {visible.map((item) => {
@@ -114,11 +114,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                         root: {
                           borderRadius: 8,
                           padding: "7px 10px",
-                          background: active ? "rgba(255,255,255,0.05)" : "transparent",
-                          color: active ? "#f4f7fb" : "#9aa3b2"
+                          background: active ? "var(--portlyn-surface-raised)" : "transparent",
+                          color: active ? "var(--portlyn-text)" : "var(--portlyn-text-muted)"
                         },
                         section: {
-                          color: active ? "#9c79d0" : "#707988"
+                          color: active ? "var(--mantine-color-brand-4)" : "var(--portlyn-text-dimmed)"
                         }
                       }}
                     />
@@ -130,11 +130,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Stack>
       </AppShell.Section>
 
-      <AppShell.Section px={18} py={14} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-        <Text size="xs" c="#667085" style={{ lineHeight: 1.4 }}>
+      <AppShell.Section px={18} py={14} style={{ borderTop: "1px solid var(--portlyn-border)" }}>
+        <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
           Made by
         </Text>
-        <Text size="sm" c="#9aa3b2" fw={500}>
+        <Text size="sm" c="var(--portlyn-text-muted)" fw={500}>
           Software Entwicklung Schnittert
         </Text>
       </AppShell.Section>
