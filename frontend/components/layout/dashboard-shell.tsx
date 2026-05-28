@@ -14,6 +14,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <AuthGuard>
       <AppShell
+        layout="alt"
         header={{ height: 64 }}
         navbar={{ width: { base: 240, lg: 272 }, breakpoint: "sm", collapsed: { mobile: !opened } }}
         padding={{ base: "md", md: "xl" }}
