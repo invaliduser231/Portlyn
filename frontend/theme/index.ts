@@ -1,9 +1,34 @@
-import { createTheme } from "@mantine/core";
+import { createTheme, defaultVariantColorsResolver, parseThemeColor, rgba, type VariantColorsResolver } from "@mantine/core";
+
+const variantColorResolver: VariantColorsResolver = (input) => {
+  const resolved = defaultVariantColorsResolver(input);
+  const parsed = parseThemeColor({ color: input.color || input.theme.primaryColor, theme: input.theme });
+
+  if (input.variant === "light") {
+    return {
+      background: rgba(parsed.value, 0.18),
+      hover: rgba(parsed.value, 0.26),
+      color: `var(--mantine-color-${parsed.color}-2)`,
+      border: `1px solid ${rgba(parsed.value, 0.3)}`
+    };
+  }
+
+  if (input.variant === "subtle") {
+    return {
+      ...resolved,
+      color: `var(--mantine-color-${parsed.color}-2)`,
+      hover: rgba(parsed.value, 0.14)
+    };
+  }
+
+  return resolved;
+};
 
 const theme = createTheme({
   primaryColor: "brand",
   primaryShade: 5,
   autoContrast: true,
+  variantColorResolver,
   defaultRadius: "lg",
   fontFamily: "Inter, Segoe UI, Arial, sans-serif",
   headings: {

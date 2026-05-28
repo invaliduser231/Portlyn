@@ -139,18 +139,37 @@ export default function AuditWebhooksPage() {
     }
   };
 
+  const test = async (id: number) => {
+    try {
+      const result = await apiFetch<{ ok: boolean; status: number; error?: string }>(`/api/v1/audit-webhooks/${id}/test`, { method: "POST" });
+      if (result.ok) {
+        notifications.show({ color: "success", message: `Test delivered (HTTP ${result.status}).` });
+      } else {
+        notifications.show({ color: "danger", message: `Test failed: ${result.error || `HTTP ${result.status}`}` });
+      }
+    } catch (err) {
+      notifications.show({ color: "danger", message: err instanceof ApiError ? err.message : "Test failed." });
+    }
+  };
+
+  const rotateSecret = async () => {
+    if (!editing) return;
+    try {
+      const result = await apiFetch<{ secret: string }>(`/api/v1/audit-webhooks/${editing.id}/rotate-secret`, { method: "POST" });
+      setCreatedSecret(result.secret);
+      notifications.show({ color: "success", message: "Secret rotated. Update your receiver." });
+    } catch (err) {
+      notifications.show({ color: "danger", message: err instanceof ApiError ? err.message : "Rotation failed." });
+    }
+  };
+
   return (
     <AdminOnly>
       <Stack gap="lg">
         <Group justify="space-between" align="flex-start">
-          <Stack gap={4}>
-            <Title order={2}>
-              <Group gap="xs"><IconWebhook size={20} /> Audit Webhooks</Group>
-            </Title>
-            <Text c="dimmed" size="sm">
-              Forward audit events to Slack, Discord, ntfy, or any HTTP endpoint. Each delivery is signed with an HMAC-SHA256 header (<Code>X-Portlyn-Signature</Code>).
-            </Text>
-          </Stack>
+          <Title order={2}>
+            <Group gap="xs"><IconWebhook size={20} /> Audit Webhooks</Group>
+          </Title>
           <Button leftSection={<IconPlus size={14} />} onClick={openCreate}>New webhook</Button>
         </Group>
 
@@ -185,9 +204,14 @@ export default function AuditWebhooksPage() {
                       {hook.last_status > 0 ? <Text size="xs" c="dimmed">{hook.last_status} {hook.last_error}</Text> : null}
                     </Table.Td>
                     <Table.Td>
-                      <ActionIcon variant="subtle" color="danger" onClick={(event) => { event.stopPropagation(); void remove(hook.id); }}>
-                        <IconTrash size={16} />
-                      </ActionIcon>
+                      <Group gap="xs" justify="flex-end">
+                        <Button size="xs" variant="light" onClick={(event) => { event.stopPropagation(); void test(hook.id); }}>
+                          Test
+                        </Button>
+                        <ActionIcon variant="subtle" color="danger" onClick={(event) => { event.stopPropagation(); void remove(hook.id); }}>
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -209,6 +233,12 @@ export default function AuditWebhooksPage() {
             <Select label="Format" data={FORMATS} value={format} onChange={(value) => setFormat(value || "generic")} />
             <MultiSelect label="Event types" data={EVENT_TYPES} value={eventTypes} onChange={setEventTypes} searchable />
             <Switch label="Active" checked={active} onChange={(event) => setActive(event.currentTarget.checked)} />
+            {editing ? (
+              <Group justify="space-between">
+                <Button variant="light" onClick={() => void test(editing.id)}>Send test</Button>
+                <Button variant="light" color="warning" onClick={() => void rotateSecret()}>Rotate secret</Button>
+              </Group>
+            ) : null}
             <Group justify="flex-end">
               <Button variant="default" onClick={() => setDrawerOpen(false)}>Cancel</Button>
               <Button onClick={() => void save()} loading={saving}>{editing ? "Save changes" : "Create"}</Button>

@@ -28,6 +28,7 @@ function ServiceDetailContent() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRedeploying, setIsRedeploying] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const params = useSearchParams();
   const serviceId = params.get("id") || undefined;
@@ -115,6 +116,20 @@ function ServiceDetailContent() {
     }
   };
 
+  const handleRedeploy = async () => {
+    if (!serviceId) return;
+    setIsRedeploying(true);
+    try {
+      const updated = await apiFetch<Service>(`/api/v1/services/${serviceId}/redeploy`, { method: "POST" });
+      setService(updated);
+      notifications.show({ color: "success", message: "Service redeployed" });
+    } catch (err) {
+      notifications.show({ color: "danger", message: err instanceof ApiError ? err.message : "Redeploy failed." });
+    } finally {
+      setIsRedeploying(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Stack align="center" py="xl">
@@ -155,7 +170,7 @@ function ServiceDetailContent() {
                 {canManage ? (
                   <Group gap="xs">
                     <MagicLinkButton serviceId={service.id} serviceName={service.name} />
-                    <Button variant="subtle" color="danger" onClick={() => setConfirmDelete(true)}>
+                    <Button variant="light" color="danger" onClick={() => setConfirmDelete(true)}>
                       Delete Service
                     </Button>
                   </Group>
@@ -305,7 +320,15 @@ function ServiceDetailContent() {
                   <Text size="sm">{service.deployment_revision}</Text>
                 </div>
               </SimpleGrid>
+              {service.service_status_error ? (
+                <Alert color="danger" variant="light">{service.service_status_error}</Alert>
+              ) : null}
               <Group>
+                {canManage ? (
+                  <Button variant="light" loading={isRedeploying} onClick={() => void handleRedeploy()}>
+                    Redeploy
+                  </Button>
+                ) : null}
                 <Button variant="default" onClick={() => router.push("/services")}>
                   Back to Services
                 </Button>

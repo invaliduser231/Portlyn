@@ -20,6 +20,7 @@ import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 
 import { AdminOnly } from "@/components/admin-only";
+import { NetworkSecurityCard } from "@/components/settings/network-security-card";
 import { useAuth } from "@/components/providers";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { AuthSettings, SystemOverview } from "@/lib/types";
@@ -227,6 +228,7 @@ export default function SettingsPage() {
                 <Tabs.Tab value="otp">OTP</Tabs.Tab>
                 <Tabs.Tab value="smtp">SMTP</Tabs.Tab>
                 <Tabs.Tab value="proxy">Proxy</Tabs.Tab>
+                <Tabs.Tab value="network">Network</Tabs.Tab>
                 <Tabs.Tab value="security">Security</Tabs.Tab>
               </Tabs.List>
             </Tabs>
@@ -234,7 +236,6 @@ export default function SettingsPage() {
             {activeTab === "general" ? (
             <Card withBorder>
               <Stack gap="md">
-                <Text fw={600}>General / Runtime</Text>
                 <TextInput
                   label="Frontend base URL"
                   description="Used for route-login redirects and OIDC flow handoff."
@@ -515,6 +516,8 @@ export default function SettingsPage() {
             </Card>
             ) : null}
 
+            {activeTab === "network" ? <NetworkSecurityCard /> : null}
+
             {activeTab === "security" ? (
             <Card withBorder>
               <Stack gap="md">
@@ -536,11 +539,13 @@ export default function SettingsPage() {
             </Card>
             ) : null}
 
-            <Group justify="flex-end">
-              <Button loading={isSaving} onClick={handleSave}>
-                Save settings
-              </Button>
-            </Group>
+            {activeTab !== "network" && activeTab !== "security" ? (
+              <Group justify="flex-end">
+                <Button loading={isSaving} onClick={handleSave}>
+                  Save settings
+                </Button>
+              </Group>
+            ) : null}
           </>
         )}
       </Stack>

@@ -281,7 +281,6 @@ export default function NodesPage() {
           <Group justify="space-between">
             <Text fw={600}>Node enrollment</Text>
             <Group gap="sm">
-              <Button variant="light" onClick={() => { setSelectedNode(null); openManual(); }}>Manual Node</Button>
               <Button onClick={() => { setSelectedNode(null); openInstall(); }}>Install Node</Button>
             </Group>
           </Group>

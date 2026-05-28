@@ -101,12 +101,7 @@ export default function AccessTesterPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <Stack gap={4}>
-          <Title order={2}>Access Tester</Title>
-          <Text c="dimmed" size="sm">
-            Simulate a request against any service without firing one. See every gate that runs and exactly where it would pass or fail.
-          </Text>
-        </Stack>
+        <Title order={2}>Access Tester</Title>
 
         {loadError ? <ErrorState title="Failed to load services" message={loadError} onRetry={() => void loadServices()} /> : null}
 

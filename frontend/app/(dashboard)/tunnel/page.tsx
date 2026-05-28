@@ -89,14 +89,9 @@ export default function TunnelPage() {
   return (
     <AdminOnly>
       <Stack gap="lg">
-        <Stack gap={4}>
-          <Title order={2}>
-            <Group gap="xs"><IconShieldLock size={20} /> Wireguard Tunnel</Group>
-          </Title>
-          <Text c="dimmed" size="sm">
-            Bring offsite nodes (homelab boxes behind CGNAT, edge hardware) into Portlyn over a Wireguard tunnel. The server generates a config file you load into <Code>wg-quick</Code> (Linux) or the Wireguard app (Windows/macOS); nodes connect with the bundle from the bootstrap endpoint.
-          </Text>
-        </Stack>
+        <Title order={2}>
+          <Group gap="xs"><IconShieldLock size={20} /> Wireguard Tunnel</Group>
+        </Title>
 
         {settings && !settings.configured && enabled ? (
           <Alert color="warning" variant="light">
