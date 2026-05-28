@@ -1,51 +1,43 @@
 "use client";
 
-import { Box, Container } from "@mantine/core";
+import { AppShell, Box } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import type { ReactNode } from "react";
 
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 
-const SIDEBAR_WIDTH = 284;
-const TOPBAR_HEIGHT = 76;
-
 export function DashboardShell({ children }: { children: ReactNode }) {
+  const [opened, { toggle, close }] = useDisclosure(false);
+
   return (
     <AuthGuard>
-      <Box mih="100vh">
-        <Box
-          pos="fixed"
-          top={0}
-          left={0}
-          bottom={0}
-          w={SIDEBAR_WIDTH}
-          style={{ zIndex: 30 }}
+      <AppShell
+        header={{ height: 64 }}
+        navbar={{ width: { base: 240, lg: 272 }, breakpoint: "sm", collapsed: { mobile: !opened } }}
+        padding={{ base: "md", md: "xl" }}
+      >
+        <AppShell.Header style={{ background: "rgba(31,31,35,0.78)", backdropFilter: "blur(12px)" }}>
+          <Topbar opened={opened} onToggle={toggle} />
+        </AppShell.Header>
+
+        <AppShell.Navbar
+          p={0}
+          style={{
+            background: "linear-gradient(180deg, #1e1f25 0%, #16171c 100%)",
+            borderRight: "1px solid rgba(255,255,255,0.04)"
+          }}
         >
-          <Sidebar />
-        </Box>
+          <Sidebar onNavigate={close} />
+        </AppShell.Navbar>
 
-        <Box ml={SIDEBAR_WIDTH}>
-          <Box
-            pos="fixed"
-            top={0}
-            left={SIDEBAR_WIDTH}
-            right={0}
-            h={TOPBAR_HEIGHT}
-            style={{ zIndex: 20 }}
-          >
-            <Topbar />
+        <AppShell.Main>
+          <Box maw={1180} mx="auto">
+            {children}
           </Box>
-
-          <Box pt={TOPBAR_HEIGHT}>
-            <Container size="xl" px={32} py={36}>
-              <Box maw={1180} mx="auto">
-                {children}
-              </Box>
-            </Container>
-          </Box>
-        </Box>
-      </Box>
+        </AppShell.Main>
+      </AppShell>
     </AuthGuard>
   );
 }
