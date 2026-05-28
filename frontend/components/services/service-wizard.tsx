@@ -35,6 +35,7 @@ import type {
   AccessMode,
   Domain,
   Group as UserGroup,
+  Node as PortlynNode,
   Service,
   ServiceGroup,
   ServicePayload,
@@ -61,6 +62,8 @@ interface BasicsState {
   upstreamPath: string;
   upstreamProtocol: "http" | "https";
   name: string;
+  routeVia: "direct" | "node";
+  nodeId: number;
 }
 
 function deriveInitialBasics(): BasicsState {
@@ -73,6 +76,8 @@ function deriveInitialBasics(): BasicsState {
     upstreamPath: "/",
     upstreamProtocol: "http",
     name: "",
+    routeVia: "direct",
+    nodeId: 0,
   };
 }
 
@@ -90,6 +95,7 @@ function templateAsServiceInitial(
     tls_mode: "offload",
     access_mode: template.recommendedAccessMode,
     access_method: template.recommendedAccessMethod,
+    node_id: basics.routeVia === "node" && basics.nodeId > 0 ? basics.nodeId : null,
   };
 }
 
@@ -107,6 +113,7 @@ function customAsServiceInitial(basics: BasicsState): Partial<Service> {
     tls_mode: "offload",
     access_mode: "authenticated",
     access_method: "session",
+    node_id: basics.routeVia === "node" && basics.nodeId > 0 ? basics.nodeId : null,
   };
 }
 
@@ -114,6 +121,7 @@ export function ServiceWizard({
   domains,
   groups,
   serviceGroups,
+  nodes = [],
   onSubmit,
   onCancel,
   isLoading,
@@ -121,6 +129,7 @@ export function ServiceWizard({
   domains: Domain[];
   groups: UserGroup[];
   serviceGroups: ServiceGroup[];
+  nodes?: PortlynNode[];
   onSubmit: (values: ServicePayload) => Promise<void>;
   onCancel?: () => void;
   isLoading?: boolean;
@@ -169,9 +178,20 @@ export function ServiceWizard({
       : templateAsServiceInitial(selectedTemplate, basics)
     : {};
 
+  const nodeOptions = useMemo(
+    () =>
+      nodes
+        .filter((node) => (node.wg_tunnel_ip || "").trim().length > 0)
+        .map((node) => ({ value: String(node.id), label: `${node.name} (${node.tunnel_status || "inactive"})` })),
+    [nodes],
+  );
+
   const canLeaveStep0 = Boolean(basics.templateId);
   const canLeaveStep1 =
-    Boolean(basics.name) && basics.domainId > 0 && Boolean(basics.upstreamHost);
+    Boolean(basics.name) &&
+    basics.domainId > 0 &&
+    Boolean(basics.upstreamHost) &&
+    (basics.routeVia !== "node" || basics.nodeId > 0);
 
   return (
     <Stack gap="lg">
@@ -295,6 +315,49 @@ export function ServiceWizard({
 
             <Paper withBorder radius="md" p="md">
               <Stack gap="sm">
+                <Input.Wrapper
+                  label="How does Portlyn reach this service?"
+                  description="Pick 'Behind a node' for anything on a private network or behind NAT/CGNAT."
+                >
+                  <SegmentedControl
+                    fullWidth
+                    mt={4}
+                    data={[
+                      { value: "direct", label: "Reachable directly" },
+                      { value: "node", label: "Behind a node (tunnel)" },
+                    ]}
+                    value={basics.routeVia}
+                    onChange={(value) =>
+                      setBasics((current) => ({
+                        ...current,
+                        routeVia: value as "direct" | "node",
+                        upstreamHost:
+                          value === "node" && !current.upstreamHost ? "127.0.0.1" : current.upstreamHost,
+                      }))
+                    }
+                  />
+                </Input.Wrapper>
+
+                {basics.routeVia === "node" ? (
+                  nodeOptions.length > 0 ? (
+                    <Select
+                      label="Node"
+                      description="The agent forwards the tunnel to this address as seen on the node, usually 127.0.0.1."
+                      placeholder="Select a node"
+                      data={nodeOptions}
+                      value={basics.nodeId ? String(basics.nodeId) : null}
+                      onChange={(value) =>
+                        setBasics((current) => ({ ...current, nodeId: Number(value || 0) }))
+                      }
+                      required
+                    />
+                  ) : (
+                    <Alert color="warning" variant="light">
+                      No connected nodes yet. Install one under Nodes, wait until it shows online, then come back.
+                    </Alert>
+                  )
+                ) : null}
+
                 <Group grow align="flex-end">
                   <Input.Wrapper label="Upstream">
                     <SegmentedControl
@@ -359,6 +422,7 @@ export function ServiceWizard({
               domains={domains}
               groups={groups}
               serviceGroups={serviceGroups}
+              nodes={nodes}
               initialValues={initialServiceValues}
               submitLabel="Create service"
               isLoading={isLoading}

@@ -175,6 +175,7 @@ type createServiceRequest struct {
 	BlockedCountries   []string                  `json:"blocked_countries"`
 	AccessWindows      []accessWindowRequest     `json:"access_windows"`
 	NodeID             *uint                     `json:"node_id"`
+	ClearNodeID        *bool                     `json:"clear_node_id"`
 }
 
 type updateServiceRequest struct {

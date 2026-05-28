@@ -14,13 +14,14 @@ import { ServiceWizard } from "@/components/services/service-wizard";
 import { accessMethodLabel, buildServiceRequestPayload, legacyAuthPolicyFromAccessMode } from "@/lib/access-control";
 import { apiFetch, ApiError } from "@/lib/api";
 import { serviceHostname } from "@/lib/service-host";
-import type { AccessMode, Domain, Group as UserGroup, Service, ServiceGroup, ServicePayload } from "@/lib/types";
+import type { AccessMode, Domain, Group as UserGroup, Node as PortlynNode, Service, ServiceGroup, ServicePayload } from "@/lib/types";
 
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [groups, setGroups] = useState<UserGroup[]>([]);
   const [serviceGroups, setServiceGroups] = useState<ServiceGroup[]>([]);
+  const [nodes, setNodes] = useState<PortlynNode[]>([]);
   const [search, setSearch] = useState("");
   const [accessMode, setAccessMode] = useState<"all" | AccessMode>("all");
   const [isLoading, setIsLoading] = useState(true);
@@ -49,16 +50,18 @@ export default function ServicesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [serviceItems, domainItems, groupItems, serviceGroupItems] = await Promise.all([
+      const [serviceItems, domainItems, groupItems, serviceGroupItems, nodeItems] = await Promise.all([
         apiFetch<Service[]>("/api/v1/services"),
         canManage ? apiFetch<Domain[]>("/api/v1/domains") : Promise.resolve([]),
         canManage ? apiFetch<UserGroup[]>("/api/v1/groups") : Promise.resolve([]),
-        canManage ? apiFetch<ServiceGroup[]>("/api/v1/service-groups") : Promise.resolve([])
+        canManage ? apiFetch<ServiceGroup[]>("/api/v1/service-groups") : Promise.resolve([]),
+        canManage ? apiFetch<PortlynNode[]>("/api/v1/nodes") : Promise.resolve([])
       ]);
       setServices(serviceItems);
       setDomains(domainItems);
       setGroups(groupItems);
       setServiceGroups(serviceGroupItems);
+      setNodes(nodeItems);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to load services.");
     } finally {
@@ -214,6 +217,7 @@ export default function ServicesPage() {
           domains={domains}
           groups={groups}
           serviceGroups={serviceGroups}
+          nodes={nodes}
           onSubmit={handleCreate}
           onCancel={close}
           isLoading={isSaving}
