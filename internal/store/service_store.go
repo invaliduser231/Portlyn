@@ -19,7 +19,7 @@ func NewServiceStore(db *gorm.DB) *ServiceStore {
 
 func (s *ServiceStore) List(ctx context.Context) ([]domain.Service, error) {
 	var items []domain.Service
-	err := s.db.WithContext(ctx).Preload("Domain").Preload("ServiceGroups").Order("id asc").Find(&items).Error
+	err := s.db.WithContext(ctx).Preload("Domain").Preload("ServiceGroups").Preload("Node").Order("id asc").Find(&items).Error
 	return items, err
 }
 
@@ -35,7 +35,7 @@ func (s *ServiceStore) Count(ctx context.Context) (int64, error) {
 
 func (s *ServiceStore) GetByID(ctx context.Context, id uint) (*domain.Service, error) {
 	var item domain.Service
-	err := s.db.WithContext(ctx).Preload("Domain").Preload("ServiceGroups").First(&item, id).Error
+	err := s.db.WithContext(ctx).Preload("Domain").Preload("ServiceGroups").Preload("Node").First(&item, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -46,7 +46,7 @@ func (s *ServiceStore) GetByID(ctx context.Context, id uint) (*domain.Service, e
 }
 
 func (s *ServiceStore) Update(ctx context.Context, item *domain.Service) error {
-	return s.db.WithContext(ctx).Omit("Domain", "ServiceGroups.*").Save(item).Error
+	return s.db.WithContext(ctx).Omit("Domain", "ServiceGroups.*", "Node").Save(item).Error
 }
 
 func (s *ServiceStore) Delete(ctx context.Context, id uint) error {
@@ -74,6 +74,7 @@ func (s *ServiceStore) ListByDomainID(ctx context.Context, domainID uint) ([]dom
 	err := s.db.WithContext(ctx).
 		Preload("Domain").
 		Preload("ServiceGroups").
+		Preload("Node").
 		Where("domain_id = ?", domainID).
 		Order("id asc").
 		Find(&items).Error
