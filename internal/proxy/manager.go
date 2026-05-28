@@ -875,12 +875,24 @@ func (m *Manager) enforceNetworkRules(w http.ResponseWriter, r *http.Request, ro
 		}
 	}
 
-	if m.countryLookup != nil && m.countryLookup.Available() && (len(route.AllowedCountries) > 0 || len(route.BlockedCountries) > 0) {
-		country := m.countryLookup.CountryISO(net.IP(clientIP.AsSlice()))
-		ok, reason := countryAllowedByRoute(country, route.AllowedCountries, route.BlockedCountries)
-		if !ok {
-			writeProxyError(w, http.StatusForbidden, "forbidden", "geoip: "+reason)
-			return false
+	if len(route.AllowedCountries) > 0 || len(route.BlockedCountries) > 0 {
+		switch {
+		case m.countryLookup == nil || !m.countryLookup.Available():
+			if m.logger != nil {
+				m.logger.Warn("geoip rules configured but database not loaded; country rules not enforced",
+					"service_id", route.ServiceID, "host", route.Host)
+			}
+		default:
+			country := m.countryLookup.CountryISO(net.IP(clientIP.AsSlice()))
+			if country == "" && m.logger != nil {
+				m.logger.Warn("geoip could not resolve client country; check trusted proxy config",
+					"service_id", route.ServiceID, "client_ip", clientIP.String())
+			}
+			ok, reason := countryAllowedByRoute(country, route.AllowedCountries, route.BlockedCountries)
+			if !ok {
+				writeProxyError(w, http.StatusForbidden, "forbidden", "geoip: "+reason)
+				return false
+			}
 		}
 	}
 

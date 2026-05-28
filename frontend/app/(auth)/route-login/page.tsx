@@ -169,7 +169,7 @@ function RouteLoginContent() {
 
   return (
     <Center mih="100vh" p="md" style={authShellStyle(ui)}>
-      <Paper withBorder radius="md" p="xl" maw={640} w="100%" style={authCardStyle(ui)}>
+      <Paper withBorder radius="md" p="xl" maw={760} w="100%" style={authCardStyle(ui)}>
         <Stack gap="lg">
           <div>
             {ui.logo_url ? <img src={ui.logo_url} alt={ui.brand_name} style={{ maxHeight: 36, maxWidth: 180, objectFit: "contain", marginBottom: 12, borderRadius: 12 }} /> : null}
