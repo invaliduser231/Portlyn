@@ -19,10 +19,39 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build server binary
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build static frontend
+        run: |
+          cd frontend
+          npm ci --no-audit --no-fund
+          PORTLYN_STATIC_EXPORT=1 npm run build
+          rm -rf ../cmd/server/frontend_dist
+          mv out ../cmd/server/frontend_dist
+
+      - name: Build server binaries
+        env:
+          CGO_ENABLED: "0"
         run: |
           mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -o dist/portlyn-server-linux-amd64 ./cmd/server
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os="${target%/*}"
+            arch="${target#*/}"
+            ext=""
+            if [ "$os" = "windows" ]; then ext=".exe"; fi
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w" -o "dist/portlyn-$os-$arch$ext" ./cmd/server
+          done
+
+      - name: Verify embedded frontend
+        run: |
+          if ! ls cmd/server/frontend_dist/index.html >/dev/null 2>&1; then
+            echo "::error::cmd/server/frontend_dist/index.html missing - server binaries would ship empty UI"
+            exit 1
+          fi
 
       - name: Build node agent binaries
         env:
@@ -33,7 +62,7 @@ jobs:
             arch="${target#*/}"
             ext=""
             if [ "$os" = "windows" ]; then ext=".exe"; fi
-            GOOS="$os" GOARCH="$arch" go build -o "dist/portlyn-nodeagent-$os-$arch$ext" ./cmd/nodeagent
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w" -o "dist/portlyn-nodeagent-$os-$arch$ext" ./cmd/nodeagent
           done
 
       - name: Create checksums
@@ -53,7 +82,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/portlyn-server-linux-amd64
+            dist/portlyn-linux-amd64
+            dist/portlyn-linux-arm64
+            dist/portlyn-darwin-amd64
+            dist/portlyn-darwin-arm64
+            dist/portlyn-windows-amd64.exe
+            dist/portlyn-windows-arm64.exe
             dist/portlyn-nodeagent-*
             dist/checksums.txt
             dist/checksums.txt.sig
