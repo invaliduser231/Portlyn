@@ -1,18 +1,16 @@
 # Licensing
 
-The binding license text is in [LICENSE](LICENSE) (Business Source License 1.1).
+Portlyn is released under the [MIT License](LICENSE).
 
-## In short
+You can read, run, modify, redistribute, and use Portlyn for any purpose,
+including commercial use, subject to the conditions in `LICENSE`.
 
-- You can read, run, and modify the source.
-- Non-production use is allowed under BSL 1.1.
-- Personal, non-commercial self-hosting by an individual is allowed by the Additional Use Grant.
-- Commercial or organizational production use needs a separate commercial license.
+## Supporting the project
 
-## Commercial use
+Portlyn is built and maintained in the open by one person.
+If you find it useful and want to help keep it going, consider sponsoring:
 
-If your use case is outside the Additional Use Grant, contact the licensor for terms.
+- GitHub Sponsors and Ko-fi links are in [`.github/FUNDING.yml`](.github/FUNDING.yml).
 
-## Licensor
-
-Licensor in [LICENSE](LICENSE): `Rainer Schnittert`.
+Sponsorships are optional and do not grant any additional rights beyond
+those already given by the MIT license.

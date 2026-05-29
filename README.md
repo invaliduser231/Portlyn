@@ -14,7 +14,7 @@
   <a href="https://github.com/invaliduser231/Portlyn/releases"><img alt="Release" src="https://img.shields.io/github/v/release/invaliduser231/Portlyn?include_prereleases&sort=semver"></a>
   <img alt="Go version" src="https://img.shields.io/badge/go-1.26-00ADD8">
   <img alt="Node version" src="https://img.shields.io/badge/node-24-339933">
-  <a href="LICENSING.md"><img alt="License" src="https://img.shields.io/badge/license-see%20LICENSING.md-lightgrey"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
   <img alt="Self hosted" src="https://img.shields.io/badge/self--hosted-yes-success">
 </p>
 
@@ -40,19 +40,21 @@ Portlyn is built to replace a Traefik plus Authentik plus Crowdsec plus WireGuar
 ## Table of Contents
 
 1. [Highlights](#highlights)
-2. [Features](#features)
-3. [Architecture](#architecture)
-4. [Installation](#installation)
-5. [Configuration](#configuration)
-6. [Certificates](#certificates)
-7. [Security](#security)
-8. [Observability](#observability)
-9. [Development](#development)
-10. [Testing](#testing)
-11. [Roadmap](#roadmap)
-12. [Documentation](#documentation)
-13. [Repository layout](#repository-layout)
-14. [License](#license)
+2. [Comparison](#comparison)
+3. [Features](#features)
+4. [Architecture](#architecture)
+5. [Installation](#installation)
+6. [Configuration](#configuration)
+7. [Certificates](#certificates)
+8. [Security](#security)
+9. [Observability](#observability)
+10. [Development](#development)
+11. [Testing](#testing)
+12. [Roadmap](#roadmap)
+13. [Documentation](#documentation)
+14. [Repository layout](#repository-layout)
+15. [Privacy](#privacy)
+16. [License](#license)
 
 ## Highlights
 
@@ -64,6 +66,27 @@ Portlyn is built to replace a Traefik plus Authentik plus Crowdsec plus WireGuar
 * Audit log with a SHA-256 hash chain. Webhooks for Slack, Discord, ntfy, or any HTTP endpoint, signed with HMAC-SHA256.
 * ACME with `http-01` and `dns-01`. Wildcards and multi SAN. Cloudflare, Hetzner DNS, Route 53, and DigitalOcean.
 * Single binary deploy with embedded frontend via `go:embed`, or full Docker Compose stack with observability included.
+
+## Comparison
+
+A pragmatic, honest comparison against the closest projects in this space.
+Pangolin is the closest single-binary alternative; Traefik plus Authelia or Authentik is the canonical "compose-it-yourself" stack.
+
+| Capability                                | Portlyn        | Pangolin       | Traefik + Authelia/Authentik |
+| ----------------------------------------- | -------------- | -------------- | ---------------------------- |
+| Single binary deploy                      | Yes            | Yes            | No (3+ services)             |
+| Built-in userspace WireGuard tunnel       | Yes            | Yes (Newt)     | No                           |
+| Passkeys / WebAuthn (registration)        | Yes            | Yes            | Via Authelia/Authentik       |
+| Magic link / one-time access              | Yes            | Limited        | No                           |
+| Per-service exposure scanner / posture    | Yes            | No             | No                           |
+| Hash-chained audit log                    | Yes            | No             | Partial (per-component logs) |
+| GeoIP + CrowdSec built in                 | Yes            | Partial        | Via plugins                  |
+| ACME with wildcard DNS-01, multi-provider | Yes            | Yes            | Yes                          |
+| Admin UI for routing and identity         | Yes (built in) | Yes (built in) | No (config files / Authelia portal) |
+| License                                   | MIT            | AGPL-3.0       | MIT / Apache-2.0 per component |
+| Ecosystem maturity                        | Young          | Growing        | Mature, large community      |
+
+Portlyn's trade-off: one process, one admin surface, one config story. The cost is a younger ecosystem and fewer integrations than the Traefik world.
 
 ## Features
 
@@ -553,8 +576,13 @@ The next milestones, in order:
 └── openapi.yaml          API specification
 ```
 
+## Privacy
+
+Portlyn collects no telemetry. No analytics SDK, no phone-home, no automatic update check.
+The only outbound traffic comes from features you explicitly configure
+(ACME, webhooks, OIDC, DNS provider APIs, CrowdSec LAPI).
+
 ## License
 
-See [LICENSING.md](LICENSING.md).
-The core platform is intended to ship under a permissive OSS license.
-Some hardening modules (exposure scanner, CrowdSec, GeoIP, WebAuthn) may be released as a separately licensed module in the future; until that split lands, all code in this repository is governed by the file in `LICENSING.md`.
+Portlyn is released under the [MIT License](LICENSE).
+See [LICENSING.md](LICENSING.md) for a short summary and sponsorship options.

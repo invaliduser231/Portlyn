@@ -32,5 +32,5 @@ We may decline contributions that:
 - expand the product far beyond its current direction
 - introduce large dependency or maintenance costs
 - weaken security defaults
-- conflict with the commercial licensing direction of the project
+- conflict with the long term direction of the project
 
