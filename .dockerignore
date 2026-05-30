@@ -3,6 +3,10 @@
 portlyn.db
 tmp
 dist
+!dist/portlyn-linux-amd64
+!dist/portlyn-linux-arm64
+!dist/portlyn-nodeagent-linux-amd64
+!dist/portlyn-nodeagent-linux-arm64
 bin
 .gocache
 .gomodcache
