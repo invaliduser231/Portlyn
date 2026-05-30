@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -17,6 +18,21 @@ var (
 	ErrNodeAlreadyProvisioned = errors.New("node already has a tunnel assignment")
 	ErrInvalidServerSettings  = errors.New("tunnel server settings are invalid")
 )
+
+func composeServerEndpoint(endpoint string, listenPort int) string {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return ""
+	}
+	if _, _, err := net.SplitHostPort(endpoint); err == nil {
+		return endpoint
+	}
+	port := listenPort
+	if port <= 0 {
+		port = 51820
+	}
+	return fmt.Sprintf("%s:%d", endpoint, port)
+}
 
 type NodeRepo interface {
 	List(ctx context.Context) ([]domain.Node, error)
@@ -205,12 +221,13 @@ func (m *Manager) BootstrapNode(ctx context.Context, nodeID uint, opts Bootstrap
 		allowedIPs = append([]string{}, opts.ClientAllowedIPs...)
 	}
 
+	serverEndpoint := composeServerEndpoint(settings.TunnelServerEndpoint, settings.TunnelListenPort)
 	bundle := ClientBundle{
 		PrivateKey:      clientKeys.PrivateKey,
 		PublicKey:       clientKeys.PublicKey,
 		Address:         assignedIP.String() + "/32",
 		ServerPublicKey: settings.TunnelServerPublicKey,
-		ServerEndpoint:  settings.TunnelServerEndpoint,
+		ServerEndpoint:  serverEndpoint,
 		AllowedIPs:      allowedIPs,
 		Keepalive:       25,
 	}
@@ -218,7 +235,7 @@ func (m *Manager) BootstrapNode(ctx context.Context, nodeID uint, opts Bootstrap
 	node.WGPublicKey = clientKeys.PublicKey
 	node.WGTunnelIP = assignedIP.String()
 	node.WGAllowedIPs = assignedIP.String() + "/32"
-	node.WGEndpoint = settings.TunnelServerEndpoint
+	node.WGEndpoint = serverEndpoint
 	node.TunnelStatus = domain.TunnelStatusProvisioned
 
 	if err := m.nodes.Update(ctx, node); err != nil {
@@ -436,7 +453,7 @@ func (m *Manager) ProvisionClient(ctx context.Context, name, description string,
 		PublicKey:       keys.PublicKey,
 		Address:         assignedIP.String() + "/32",
 		ServerPublicKey: settings.TunnelServerPublicKey,
-		ServerEndpoint:  settings.TunnelServerEndpoint,
+		ServerEndpoint:  composeServerEndpoint(settings.TunnelServerEndpoint, settings.TunnelListenPort),
 		AllowedIPs:      allowedSubnets,
 		Keepalive:       25,
 	}
@@ -487,7 +504,7 @@ func (m *Manager) RotateClient(ctx context.Context, clientID uint) (*ClientBundl
 		PublicKey:       keys.PublicKey,
 		Address:         client.WGTunnelIP + "/32",
 		ServerPublicKey: settings.TunnelServerPublicKey,
-		ServerEndpoint:  settings.TunnelServerEndpoint,
+		ServerEndpoint:  composeServerEndpoint(settings.TunnelServerEndpoint, settings.TunnelListenPort),
 		AllowedIPs:      allowedSubnets,
 		Keepalive:       25,
 	}
