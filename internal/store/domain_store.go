@@ -33,6 +33,18 @@ func (s *DomainStore) Count(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (s *DomainStore) GetByName(ctx context.Context, name string) (*domain.Domain, error) {
+	var item domain.Domain
+	err := s.db.WithContext(ctx).Where("name = ?", name).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 func (s *DomainStore) GetByID(ctx context.Context, id uint) (*domain.Domain, error) {
 	var item domain.Domain
 	err := s.db.WithContext(ctx).First(&item, id).Error

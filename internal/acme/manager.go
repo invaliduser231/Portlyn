@@ -41,6 +41,9 @@ type Manager struct {
 	metrics    *observability.Metrics
 	lastError  string
 	lastSyncAt time.Time
+
+	selfSignedMu    sync.RWMutex
+	selfSignedCache map[string]*tls.Certificate
 }
 
 type Status struct {
@@ -56,13 +59,14 @@ type SecretMigrationSummary struct {
 
 func NewManager(cfg config.Config, db *gorm.DB, certificateStore *store.CertificateStore, domainStore *store.DomainStore, dnsProviderStore *store.DNSProviderStore, metrics *observability.Metrics) (*Manager, error) {
 	manager := &Manager{
-		cfg:          cfg,
-		certificates: certificateStore,
-		domains:      domainStore,
-		dnsProviders: dnsProviderStore,
-		tlsStore:     NewDBCertificateStore(db, cfg.DataEncryptionSecrets()),
-		storage:      NewCertMagicStorage(db, 30*time.Second, cfg.DataEncryptionSecrets()),
-		metrics:      metrics,
+		cfg:             cfg,
+		certificates:    certificateStore,
+		domains:         domainStore,
+		dnsProviders:    dnsProviderStore,
+		tlsStore:        NewDBCertificateStore(db, cfg.DataEncryptionSecrets()),
+		storage:         NewCertMagicStorage(db, 30*time.Second, cfg.DataEncryptionSecrets()),
+		metrics:         metrics,
+		selfSignedCache: make(map[string]*tls.Certificate),
 	}
 
 	if err := manager.loadStaticCertificate(); err != nil {
@@ -295,11 +299,42 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 	}
 
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	if m.staticCert != nil {
-		return m.staticCert, nil
+		cert := m.staticCert
+		m.mu.RUnlock()
+		return cert, nil
+	}
+	m.mu.RUnlock()
+
+	if serverName != "" {
+		if cert, err := m.bootstrapCertFor(serverName); err == nil {
+			return cert, nil
+		}
 	}
 	return nil, fmt.Errorf("no tls certificate available")
+}
+
+func (m *Manager) bootstrapCertFor(hostname string) (*tls.Certificate, error) {
+	m.selfSignedMu.RLock()
+	if cert, ok := m.selfSignedCache[hostname]; ok {
+		m.selfSignedMu.RUnlock()
+		return cert, nil
+	}
+	m.selfSignedMu.RUnlock()
+
+	cert, err := generateSelfSignedCert(hostname)
+	if err != nil {
+		return nil, err
+	}
+
+	m.selfSignedMu.Lock()
+	if existing, ok := m.selfSignedCache[hostname]; ok {
+		m.selfSignedMu.Unlock()
+		return existing, nil
+	}
+	m.selfSignedCache[hostname] = cert
+	m.selfSignedMu.Unlock()
+	return cert, nil
 }
 
 func wildcardDomainForHost(host string) string {

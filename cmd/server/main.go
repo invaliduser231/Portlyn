@@ -185,6 +185,7 @@ func main() {
 			"stored_tls_private_keys", migrationSummary.StoredTLSPrivateKeys,
 		)
 	}
+	bootstrapAdminCertificate(context.Background(), cfg, domainStore, certificateStore, logger)
 	auditSink := audit.NewAsyncSink(auditStore, cfg.AuditBufferSize, cfg.AuditBatchSize, cfg.AuditFlushInterval, cfg.AuditDropPolicy, logger)
 	auditLogger := audit.NewLogger(auditSink)
 	auditWebhookStore := store.NewAuditWebhookStore(db)
