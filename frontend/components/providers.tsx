@@ -64,11 +64,12 @@ function AuthProvider({ children }: { children: ReactNode }) {
   const [isCompletingSetup, setIsCompletingSetup] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const isPublicAuthRoute =
-    pathname === "/login" ||
-    pathname === "/oidc/callback" ||
-    pathname === "/route-login" ||
-    pathname === "/route-forbidden";
+    normalizedPath === "/login" ||
+    normalizedPath === "/oidc/callback" ||
+    normalizedPath === "/route-login" ||
+    normalizedPath === "/route-forbidden";
 
   const clearSession = useCallback(() => {
     setUser(null);

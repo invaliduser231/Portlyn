@@ -11,7 +11,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const viewerAllowed = pathname === "/services";
+  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const viewerAllowed = normalizedPath === "/services";
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
