@@ -59,6 +59,64 @@ func (s *AppSettingsStore) Upsert(ctx context.Context, item *domain.AppSettings)
 	return s.db.WithContext(ctx).Save(&encrypted).Error
 }
 
+type EnvDrift struct {
+	Field    string
+	EnvValue string
+	DBValue  string
+}
+
+func (s *AppSettingsStore) DetectEnvDrift(ctx context.Context, cfg config.Config) ([]EnvDrift, error) {
+	current, err := s.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var drifts []EnvDrift
+	if current.RequireMFAForAdmins != cfg.RequireMFAForAdmins {
+		drifts = append(drifts, EnvDrift{
+			Field:    "REQUIRE_MFA_FOR_ADMINS",
+			EnvValue: boolToString(cfg.RequireMFAForAdmins),
+			DBValue:  boolToString(current.RequireMFAForAdmins),
+		})
+	}
+	if strings.TrimSpace(cfg.FrontendBaseURL) != "" && current.FrontendBaseURL != cfg.FrontendBaseURL {
+		drifts = append(drifts, EnvDrift{
+			Field:    "FRONTEND_BASE_URL",
+			EnvValue: cfg.FrontendBaseURL,
+			DBValue:  current.FrontendBaseURL,
+		})
+	}
+	return drifts, nil
+}
+
+func (s *AppSettingsStore) SyncFromEnv(ctx context.Context, cfg config.Config) ([]EnvDrift, error) {
+	drifts, err := s.DetectEnvDrift(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if len(drifts) == 0 {
+		return nil, nil
+	}
+	current, err := s.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	current.RequireMFAForAdmins = cfg.RequireMFAForAdmins
+	if strings.TrimSpace(cfg.FrontendBaseURL) != "" {
+		current.FrontendBaseURL = cfg.FrontendBaseURL
+	}
+	if err := s.Upsert(ctx, current); err != nil {
+		return nil, err
+	}
+	return drifts, nil
+}
+
+func boolToString(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
 func (s *AppSettingsStore) SeedDefaults(ctx context.Context, cfg config.Config) error {
 	s.SetDataEncryptionSecrets(cfg.DataEncryptionSecrets())
 	_, err := s.Get(ctx)

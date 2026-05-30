@@ -32,6 +32,8 @@ export interface User {
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
+  bootstrap_required?: boolean;
+  bootstrap_dismissed?: boolean;
 }
 
 export interface Group {
@@ -448,6 +450,7 @@ export interface LoginResponse {
   mfa_token?: string;
   mfa_expires_at?: string;
   next?: string;
+  bootstrap_required?: boolean;
 }
 
 export interface AuthConfigResponse {

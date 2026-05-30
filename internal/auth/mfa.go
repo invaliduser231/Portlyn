@@ -258,29 +258,24 @@ func (s *Service) verifyMFAFactor(user *domain.User, code string) (bool, domain.
 	return matched, remaining, nil
 }
 
-func (s *Service) shouldRequireMFA(ctx context.Context, user *domain.User) bool {
+func (s *Service) BootstrapRequired(ctx context.Context, user *domain.User) bool {
 	if user == nil {
 		return false
 	}
-	if user.MFAEnabled {
+	if user.MustChangePassword {
 		return true
 	}
+	if user.MFAEnabled {
+		return false
+	}
+	if user.Role != domain.RoleAdmin {
+		return false
+	}
 	settings, _ := s.settings.Get(ctx)
-	if settings == nil || !settings.RequireMFAForAdmins || user.Role != domain.RoleAdmin {
+	if settings == nil || !settings.RequireMFAForAdmins {
 		return false
 	}
 	return !s.userHasPasskey(ctx, user.ID)
-}
-
-func (s *Service) enforceAdminMFARequirement(ctx context.Context, user *domain.User) error {
-	if user == nil || user.MFAEnabled || user.Role != domain.RoleAdmin {
-		return nil
-	}
-	settings, _ := s.settings.Get(ctx)
-	if settings != nil && settings.RequireMFAForAdmins && !s.userHasPasskey(ctx, user.ID) {
-		return ErrMFASetupRequired
-	}
-	return nil
 }
 
 func (s *Service) generateRecoveryCodes() ([]string, []string, error) {

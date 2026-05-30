@@ -97,6 +97,12 @@ export async function completeAccountSetup(email: string, password: string) {
   });
 }
 
+export async function dismissBootstrap() {
+  return apiFetch<{ bootstrap_dismissed: boolean }>("/api/v1/me/bootstrap/dismiss", {
+    method: "POST"
+  });
+}
+
 export async function logoutRequest() {
   try {
     await apiFetch<{ ok: boolean }>("/api/v1/auth/logout", { method: "POST" });

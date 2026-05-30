@@ -198,7 +198,7 @@ func (s *Server) Router() stdhttp.Handler {
 			return
 		}
 		if !s.cfg.MetricsPublic {
-			user, _, err := s.auth.AuthenticateRequest(r.Context(), r)
+			user, _, _, err := s.auth.AuthenticateRequest(r.Context(), r)
 			if err != nil || user == nil || !user.Active || user.Role != domain.RoleAdmin {
 				writeErrorRequest(w, r, stdhttp.StatusUnauthorized, "unauthorized", "admin authentication required")
 				return
@@ -231,6 +231,7 @@ func (s *Server) Router() stdhttp.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.auth.RequireAuth)
+			r.Use(s.auth.RequireBootstrapComplete)
 			r.Get("/me", s.handleMe)
 			r.Post("/me/account-setup", s.handleCompleteAccountSetup)
 			r.Post("/me/password", s.handleChangeOwnPassword)
@@ -239,6 +240,7 @@ func (s *Server) Router() stdhttp.Handler {
 			r.Post("/me/mfa/enable", s.handleEnableMyMFA)
 			r.Post("/me/mfa/disable", s.handleDisableMyMFA)
 			r.Post("/me/mfa/recovery-codes", s.handleRegenerateMyRecoveryCodes)
+			r.Post("/me/bootstrap/dismiss", s.handleDismissBootstrap)
 			r.Get("/sessions", s.handleListMySessions)
 			r.Delete("/sessions/{id}", s.handleRevokeMySession)
 			r.Post("/sessions/revoke-all", s.handleRevokeAllMySessions)
@@ -391,7 +393,38 @@ func (s *Server) handleMe(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		writeErrorRequest(w, r, stdhttp.StatusUnauthorized, "unauthorized", "missing auth context")
 		return
 	}
-	writeJSON(w, stdhttp.StatusOK, user)
+	dismissed := false
+	if session, ok := auth.SessionFromContext(r.Context()); ok && session != nil {
+		dismissed = session.BootstrapDismissed
+	}
+	response := struct {
+		*domain.User
+		BootstrapRequired  bool `json:"bootstrap_required"`
+		BootstrapDismissed bool `json:"bootstrap_dismissed"`
+	}{
+		User:               user,
+		BootstrapRequired:  s.auth.BootstrapRequired(r.Context(), user),
+		BootstrapDismissed: dismissed,
+	}
+	writeJSON(w, stdhttp.StatusOK, response)
+}
+
+func (s *Server) handleDismissBootstrap(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	session, ok := auth.SessionFromContext(r.Context())
+	if !ok || session == nil {
+		writeErrorRequest(w, r, stdhttp.StatusUnauthorized, "unauthorized", "session required")
+		return
+	}
+	user, _ := auth.UserFromContext(r.Context())
+	if err := s.sessions.MarkBootstrapDismissed(r.Context(), session.ID, time.Now().UTC()); err != nil {
+		s.internalError(w, err)
+		return
+	}
+	session.BootstrapDismissed = true
+	if user != nil {
+		_ = s.audit.Log(r.Context(), &user.ID, "bootstrap_dismissed", "user", &user.ID, nil)
+	}
+	writeJSON(w, stdhttp.StatusOK, map[string]any{"bootstrap_dismissed": true})
 }
 
 func (s *Server) decodeAndValidate(w stdhttp.ResponseWriter, r *stdhttp.Request, target any) bool {

@@ -56,8 +56,11 @@ func TestBreakGlassLoginBypassesAdminMFARequirement(t *testing.T) {
 	normalLoginReq.AddCookie(&http.Cookie{Name: auth.CSRFCookieName, Value: csrf})
 	normalLoginRec := httptest.NewRecorder()
 	server.Router().ServeHTTP(normalLoginRec, normalLoginReq)
-	if normalLoginRec.Code != http.StatusForbidden {
-		t.Fatalf("expected normal admin login to require mfa, got %d: %s", normalLoginRec.Code, normalLoginRec.Body.String())
+	if normalLoginRec.Code != http.StatusOK {
+		t.Fatalf("expected normal admin login to succeed in bootstrap mode, got %d: %s", normalLoginRec.Code, normalLoginRec.Body.String())
+	}
+	if !bytes.Contains(normalLoginRec.Body.Bytes(), []byte(`"bootstrap_required":true`)) {
+		t.Fatalf("expected bootstrap_required=true in login response, got %s", normalLoginRec.Body.String())
 	}
 
 	breakGlassReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/break-glass/login", bytes.NewBufferString(`{"email":"admin-breakglass@example.com","password":"StrongPass123!","token":"break-glass-token-1234567890"}`))

@@ -68,6 +68,20 @@ func (s *SessionStore) Update(ctx context.Context, item *domain.Session) error {
 	return s.db.WithContext(ctx).Omit("User").Save(item).Error
 }
 
+func (s *SessionStore) MarkBootstrapDismissed(ctx context.Context, id uint, now time.Time) error {
+	result := s.db.WithContext(ctx).Model(&domain.Session{}).Where("id = ?", id).Updates(map[string]any{
+		"bootstrap_dismissed": true,
+		"updated_at":          now,
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *SessionStore) Revoke(ctx context.Context, id uint, revokedAt time.Time) error {
 	result := s.db.WithContext(ctx).Model(&domain.Session{}).Where("id = ? AND revoked_at IS NULL", id).Updates(map[string]any{
 		"revoked_at": revokedAt,

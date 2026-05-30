@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Button, Center, Loader, MantineProvider, Modal, PasswordInput, Stack, Text, TextInput, type CSSVariablesResolver } from "@mantine/core";
+import { Avatar, Center, Loader, MantineProvider, Stack, Text, type CSSVariablesResolver } from "@mantine/core";
 import { Notifications, notifications } from "@mantine/notifications";
 import {
   createContext,
@@ -13,11 +13,11 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+import { BootstrapWizard } from "@/components/bootstrap/wizard";
 import theme from "@/theme";
 import {
   getCurrentUser,
   login as loginRequest,
-  completeAccountSetup as completeAccountSetupRequest,
   logoutRequest,
   logout as clearAuthStorage
 } from "@/lib/auth";
@@ -58,10 +58,6 @@ function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [setupEmail, setSetupEmail] = useState("");
-  const [setupPassword, setSetupPassword] = useState("");
-  const [setupConfirmPassword, setSetupConfirmPassword] = useState("");
-  const [isCompletingSetup, setIsCompletingSetup] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
@@ -87,10 +83,11 @@ function AuthProvider({ children }: { children: ReactNode }) {
     (response: LoginResponse) => {
       setApiToken(response.token || null);
       setToken(response.token || null);
-      setUser(response.user);
-      setSetupEmail(response.user.email || "");
-      setSetupPassword("");
-      setSetupConfirmPassword("");
+      setUser({
+        ...response.user,
+        bootstrap_required:
+          response.user.bootstrap_required ?? response.bootstrap_required ?? false
+      });
       notifications.show({
         title: "Signed in",
         message: `Role: ${response.user.role}`,
@@ -109,7 +106,6 @@ function AuthProvider({ children }: { children: ReactNode }) {
     getCurrentUser()
       .then((currentUser) => {
         setUser(currentUser);
-        setSetupEmail(currentUser.email || "");
       })
       .catch(() => {
         clearSession();
@@ -146,75 +142,30 @@ function AuthProvider({ children }: { children: ReactNode }) {
     [completeAuth, handleLogout, isLoading, login, token, user]
   );
 
-  const requiresAccountSetup = Boolean(user?.must_change_password);
+  const showWizard = Boolean(
+    user && (user.bootstrap_required || user.must_change_password) && !user.bootstrap_dismissed
+  );
 
-  const handleCompleteAccountSetup = useCallback(async () => {
-    if (!user) {
-      return;
-    }
-    if (setupPassword.length < 8) {
-      notifications.show({ color: "danger", message: "Password must be at least 8 characters." });
-      return;
-    }
-    if (setupPassword !== setupConfirmPassword) {
-      notifications.show({ color: "danger", message: "Passwords do not match." });
-      return;
-    }
-    setIsCompletingSetup(true);
-    try {
-      const updatedUser = await completeAccountSetupRequest(setupEmail, setupPassword);
-      setUser(updatedUser);
-      setSetupPassword("");
-      setSetupConfirmPassword("");
-      notifications.show({ color: "success", message: "Account setup completed" });
-    } catch (error) {
-      notifications.show({
-        color: "danger",
-        message: error instanceof Error ? error.message : "Unable to complete account setup."
-      });
-    } finally {
-      setIsCompletingSetup(false);
-    }
-  }, [setupConfirmPassword, setupEmail, setupPassword, user]);
+  const handleWizardComplete = useCallback(
+    async (updates?: { user?: User; dismissed?: boolean }) => {
+      if (updates?.user) {
+        setUser((current) => (current ? { ...current, ...updates.user } : updates.user!));
+      }
+      try {
+        const fresh = await getCurrentUser();
+        setUser(fresh);
+      } catch {
+        if (updates?.dismissed) {
+          setUser((current) => (current ? { ...current, bootstrap_dismissed: true } : current));
+        }
+      }
+    },
+    []
+  );
 
   return (
     <AuthContext.Provider value={value}>
-      <Modal
-        opened={requiresAccountSetup}
-        onClose={() => undefined}
-        closeOnClickOutside={false}
-        closeOnEscape={false}
-        withCloseButton={false}
-        centered
-        title="Finish account setup"
-      >
-        <Stack gap="md">
-          <Text c="dimmed" size="sm">
-            This account is still using an initial password. Set a new password now and update the email address if needed.
-          </Text>
-          <TextInput
-            label="Email"
-            value={setupEmail}
-            onChange={(event) => setSetupEmail(event.currentTarget.value)}
-            disabled={isCompletingSetup}
-          />
-          <PasswordInput
-            label="New password"
-            value={setupPassword}
-            onChange={(event) => setSetupPassword(event.currentTarget.value)}
-            disabled={isCompletingSetup}
-          />
-          <PasswordInput
-            label="Confirm password"
-            value={setupConfirmPassword}
-            onChange={(event) => setSetupConfirmPassword(event.currentTarget.value)}
-            disabled={isCompletingSetup}
-          />
-          <Button loading={isCompletingSetup} onClick={() => void handleCompleteAccountSetup()} disabled={!setupEmail || !setupPassword || !setupConfirmPassword}>
-            Save and continue
-          </Button>
-        </Stack>
-      </Modal>
+      {showWizard && user ? <BootstrapWizard user={user} onComplete={handleWizardComplete} /> : null}
       {isPublicAuthRoute || (!isLoading && Boolean(user)) ? (
         children
       ) : (

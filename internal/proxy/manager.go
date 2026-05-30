@@ -832,7 +832,7 @@ func (m *Manager) enforceAccessMethod(w http.ResponseWriter, r *http.Request, ro
 }
 
 func (m *Manager) authenticateProxyRequest(r *http.Request) (*domain.User, []uint, int, bool) {
-	user, groupIDs, err := m.auth.AuthenticateRequest(r.Context(), r)
+	user, groupIDs, _, err := m.auth.AuthenticateRequest(r.Context(), r)
 	if err != nil {
 		return nil, nil, http.StatusUnauthorized, false
 	}

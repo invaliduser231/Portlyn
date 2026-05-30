@@ -189,7 +189,11 @@ func (s *Server) writeLoginResult(w stdhttp.ResponseWriter, r *stdhttp.Request, 
 	secure := s.requestSecure(r)
 	s.auth.SetSessionCookie(w, result.Token, secure)
 	s.auth.SetRefreshCookie(w, result.RefreshToken, secure)
-	writeJSON(w, stdhttp.StatusOK, map[string]any{"token": s.responseAuthToken(result.Token), "user": result.User})
+	writeJSON(w, stdhttp.StatusOK, map[string]any{
+		"token":              s.responseAuthToken(result.Token),
+		"user":               result.User,
+		"bootstrap_required": result.BootstrapRequired,
+	})
 }
 
 func (s *Server) handleLogoutSession(w stdhttp.ResponseWriter, r *stdhttp.Request) {

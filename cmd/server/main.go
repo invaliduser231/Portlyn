@@ -45,6 +45,12 @@ func main() {
 		case "version", "--version", "-v":
 			fmt.Println("portlyn", version)
 			return
+		case "settings":
+			if err := runSettingsSubcommand(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "settings:", err)
+				os.Exit(1)
+			}
+			return
 		case "help", "--help", "-h":
 			printUsage()
 			return
@@ -130,6 +136,14 @@ func main() {
 	if err := appSettingsStore.SeedDefaults(context.Background(), cfg); err != nil {
 		logger.Error("failed to seed app settings", "error", err)
 		os.Exit(1)
+	}
+	if drifts, err := appSettingsStore.DetectEnvDrift(context.Background(), cfg); err != nil {
+		logger.Warn("env drift detection failed", "error", err)
+	} else {
+		for _, d := range drifts {
+			logger.Warn("env value differs from stored setting (DB wins; run 'portlyn settings sync' to apply env)",
+				"field", d.Field, "env", d.EnvValue, "db", d.DBValue)
+		}
 	}
 	authService, err := auth.NewService(
 		userStore,
@@ -444,6 +458,7 @@ func printUsage() {
 Usage:
   portlyn               start the server (requires .env)
   portlyn init          interactive setup wizard (generates .env and admin user)
+  portlyn settings sync apply env values for env-controlled settings to the database
   portlyn version       print version and exit
   portlyn help          show this help
 

@@ -53,7 +53,7 @@ func SessionCookieNameForService(serviceID uint) string {
 	return fmt.Sprintf("portlyn_route_access_%d", serviceID)
 }
 
-func (s *Service) AuthenticateRequest(ctx context.Context, r *http.Request) (*domain.User, []uint, error) {
+func (s *Service) AuthenticateRequest(ctx context.Context, r *http.Request) (*domain.User, []uint, *domain.Session, error) {
 	token := strings.TrimSpace(bearerTokenFromHeader(r.Header.Get("Authorization")))
 	if token == "" {
 		cookie, err := r.Cookie(SessionCookieName)
@@ -62,7 +62,7 @@ func (s *Service) AuthenticateRequest(ctx context.Context, r *http.Request) (*do
 		}
 	}
 	if token == "" {
-		return nil, nil, ErrInvalidToken
+		return nil, nil, nil, ErrInvalidToken
 	}
 	return s.AuthenticateAccessToken(ctx, token)
 }

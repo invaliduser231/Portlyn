@@ -105,13 +105,14 @@ type RequestMetadata struct {
 }
 
 type LoginResult struct {
-	Token        string
-	RefreshToken string
-	User         *domain.User
-	Session      *domain.Session
-	MFARequired  bool
-	MFAToken     string
-	MFAExpiresAt time.Time
+	Token             string
+	RefreshToken      string
+	User              *domain.User
+	Session           *domain.Session
+	MFARequired       bool
+	MFAToken          string
+	MFAExpiresAt      time.Time
+	BootstrapRequired bool
 }
 
 type OTPRequestResult struct {
@@ -255,9 +256,6 @@ func (s *Service) Login(ctx context.Context, email, password string, meta Reques
 		s.observeAuth("password", "inactive")
 		return nil, ErrInactiveUser
 	}
-	if err := s.enforceAdminMFARequirement(ctx, user); err != nil {
-		return nil, err
-	}
 
 	result, err := s.completePrimaryLogin(ctx, user, meta)
 	if err == nil {
@@ -333,9 +331,6 @@ func (s *Service) CompleteOIDC(ctx context.Context, code, state string) (*LoginR
 	}
 	if !user.Active {
 		return nil, nil, next, ErrInactiveUser
-	}
-	if err := s.enforceAdminMFARequirement(ctx, user); err != nil {
-		return nil, nil, next, err
 	}
 
 	result, err := s.completePrimaryLogin(ctx, user, RequestMetadata{})
@@ -445,9 +440,6 @@ func (s *Service) VerifyOTP(ctx context.Context, email, token string, meta Reque
 	if !user.Active {
 		return nil, ErrInactiveUser
 	}
-	if err := s.enforceAdminMFARequirement(ctx, user); err != nil {
-		return nil, err
-	}
 	if err := s.loginTokens.MarkUsed(ctx, item.ID, now); err != nil {
 		return nil, err
 	}
@@ -488,42 +480,48 @@ func (s *Service) GetUserGroupIDs(ctx context.Context, id uint) ([]uint, error) 
 	return s.groups.ListGroupIDsForUser(ctx, id)
 }
 
-func (s *Service) AuthenticateAccessToken(ctx context.Context, tokenString string) (*domain.User, []uint, error) {
+func (s *Service) AuthenticateAccessToken(ctx context.Context, tokenString string) (*domain.User, []uint, *domain.Session, error) {
+	claims, parseErr := s.ParseToken(tokenString)
 	if user, groupIDs, ok := s.getCachedAuthResult(ctx, tokenString); ok {
-		return user, groupIDs, nil
+		var session *domain.Session
+		if parseErr == nil && claims.SessionID != 0 && s.sessions != nil {
+			session, _ = s.sessions.GetByTokenID(ctx, claims.TokenID)
+		}
+		return user, groupIDs, session, nil
 	}
-	claims, err := s.ParseToken(tokenString)
-	if err != nil {
-		return nil, nil, err
+	if parseErr != nil {
+		return nil, nil, nil, parseErr
 	}
 	user, err := s.GetUser(ctx, claims.UserID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if !user.Active {
-		return nil, nil, ErrInactiveUser
+		return nil, nil, nil, ErrInactiveUser
 	}
+	var session *domain.Session
 	if claims.SessionID != 0 && s.sessions != nil {
-		session, err := s.sessions.GetByTokenID(ctx, claims.TokenID)
+		s2, err := s.sessions.GetByTokenID(ctx, claims.TokenID)
 		if err != nil {
-			return nil, nil, ErrInvalidToken
+			return nil, nil, nil, ErrInvalidToken
 		}
-		if session.RevokedAt != nil {
-			return nil, nil, ErrSessionRevoked
+		if s2.RevokedAt != nil {
+			return nil, nil, nil, ErrSessionRevoked
 		}
 		now := time.Now().UTC()
-		if session.ExpiresAt.Before(now) {
-			return nil, nil, ErrRefreshExpired
+		if s2.ExpiresAt.Before(now) {
+			return nil, nil, nil, ErrRefreshExpired
 		}
-		session.LastSeenAt = &now
-		_ = s.sessions.Update(ctx, session)
+		s2.LastSeenAt = &now
+		_ = s.sessions.Update(ctx, s2)
+		session = s2
 	}
 	groupIDs, err := s.GetUserGroupIDs(ctx, user.ID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	s.storeCachedAuthResult(tokenString, user, groupIDs, claims.ExpiresAt)
-	return user, groupIDs, nil
+	return user, groupIDs, session, nil
 }
 
 func (s *Service) completeSuccessfulLogin(ctx context.Context, user *domain.User, meta RequestMetadata) (*LoginResult, error) {
@@ -541,14 +539,17 @@ func (s *Service) completeSuccessfulLogin(ctx context.Context, user *domain.User
 	if err != nil {
 		return nil, err
 	}
-	return &LoginResult{Token: token, RefreshToken: refreshToken, User: user, Session: session}, nil
+	return &LoginResult{
+		Token:             token,
+		RefreshToken:      refreshToken,
+		User:              user,
+		Session:           session,
+		BootstrapRequired: s.BootstrapRequired(ctx, user),
+	}, nil
 }
 
 func (s *Service) completePrimaryLogin(ctx context.Context, user *domain.User, meta RequestMetadata) (*LoginResult, error) {
-	if s.shouldRequireMFA(ctx, user) {
-		if !user.MFAEnabled {
-			return nil, ErrMFASetupRequired
-		}
+	if user.MFAEnabled {
 		return s.beginMFAChallenge(ctx, user, meta)
 	}
 	return s.completeSuccessfulLogin(ctx, user, meta)

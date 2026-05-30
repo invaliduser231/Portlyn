@@ -431,19 +431,20 @@ type LoginToken struct {
 }
 
 type Session struct {
-	ID               uint       `gorm:"primaryKey" json:"id"`
-	UserID           uint       `gorm:"index;not null" json:"user_id"`
-	User             User       `json:"user,omitempty"`
-	TokenID          string     `gorm:"uniqueIndex;size:64;not null" json:"token_id"`
-	RefreshTokenHash string     `gorm:"uniqueIndex;size:128;not null" json:"-"`
-	Label            string     `gorm:"size:255" json:"label"`
-	UserAgent        string     `gorm:"size:512" json:"user_agent"`
-	RemoteAddr       string     `gorm:"size:255" json:"remote_addr"`
-	LastSeenAt       *time.Time `json:"last_seen_at"`
-	ExpiresAt        time.Time  `gorm:"index;not null" json:"expires_at"`
-	RevokedAt        *time.Time `gorm:"index" json:"revoked_at"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	ID                 uint       `gorm:"primaryKey" json:"id"`
+	UserID             uint       `gorm:"index;not null" json:"user_id"`
+	User               User       `json:"user,omitempty"`
+	TokenID            string     `gorm:"uniqueIndex;size:64;not null" json:"token_id"`
+	RefreshTokenHash   string     `gorm:"uniqueIndex;size:128;not null" json:"-"`
+	Label              string     `gorm:"size:255" json:"label"`
+	UserAgent          string     `gorm:"size:512" json:"user_agent"`
+	RemoteAddr         string     `gorm:"size:255" json:"remote_addr"`
+	LastSeenAt         *time.Time `json:"last_seen_at"`
+	ExpiresAt          time.Time  `gorm:"index;not null" json:"expires_at"`
+	RevokedAt          *time.Time `gorm:"index" json:"revoked_at"`
+	BootstrapDismissed bool       `gorm:"not null;default:false" json:"bootstrap_dismissed"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 type AuditLog struct {
