@@ -435,8 +435,9 @@ func (m *Manager) newHTTPChallengeConfig() (*certmagic.Config, *certmagic.ACMEIs
 	}
 	magic = certmagic.New(cache, cfg)
 	template := certmagic.ACMEIssuer{
-		CA:    certificateAuthorityURL(domain.CertificateIssuerLetsEncryptProd, m.cfg.ACMECAURL),
-		Email: m.cfg.ACMEEmail,
+		CA:                      certificateAuthorityURL(domain.CertificateIssuerLetsEncryptProd, m.cfg.ACMECAURL),
+		Email:                   m.cfg.ACMEEmail,
+		DisableTLSALPNChallenge: true,
 	}
 	issuer := certmagic.NewACMEIssuer(magic, template)
 	magic.Issuers = []certmagic.Issuer{issuer}
@@ -457,8 +458,9 @@ func (m *Manager) configForCertificate(ctx context.Context, item *domain.Certifi
 	}
 	magic = certmagic.New(cache, cfg)
 	issuerTemplate := certmagic.ACMEIssuer{
-		CA:    certificateAuthorityURL(item.Issuer, m.cfg.ACMECAURL),
-		Email: m.cfg.ACMEEmail,
+		CA:                      certificateAuthorityURL(item.Issuer, m.cfg.ACMECAURL),
+		Email:                   m.cfg.ACMEEmail,
+		DisableTLSALPNChallenge: true,
 	}
 	if item.ChallengeType == domain.CertificateChallengeDNS01 {
 		if item.DNSProviderID == nil || *item.DNSProviderID == 0 {
