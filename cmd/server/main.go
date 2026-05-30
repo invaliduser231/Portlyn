@@ -31,17 +31,31 @@ import (
 	"portlyn/internal/tunnel"
 )
 
+var version = "dev"
+
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "init" {
-		if err := runInitWizard(os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, "init failed:", err)
-			os.Exit(1)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "init":
+			if err := runInitWizard(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "init failed:", err)
+				os.Exit(1)
+			}
+			return
+		case "version", "--version", "-v":
+			fmt.Println("portlyn", version)
+			return
+		case "help", "--help", "-h":
+			printUsage()
+			return
 		}
-		return
 	}
 	cfg, err := config.Load()
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "config error:", err)
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Run './portlyn init' first to generate a .env file with required secrets.")
+		os.Exit(1)
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
@@ -421,6 +435,18 @@ func portFromAddr(addr string) string {
 		return ""
 	}
 	return port
+}
+
+func printUsage() {
+	fmt.Println(`portlyn ` + version + `
+
+Usage:
+  portlyn               start the server (requires .env)
+  portlyn init          interactive setup wizard (generates .env and admin user)
+  portlyn version       print version and exit
+  portlyn help          show this help
+
+Documentation: https://github.com/invaliduser231/Portlyn`)
 }
 
 func hostnameFromURL(raw string) string {

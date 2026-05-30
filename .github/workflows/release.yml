@@ -38,12 +38,13 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           mkdir -p dist
+          VERSION="${GITHUB_REF_NAME:-dev}"
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             os="${target%/*}"
             arch="${target#*/}"
             ext=""
             if [ "$os" = "windows" ]; then ext=".exe"; fi
-            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w" -o "dist/portlyn-$os-$arch$ext" ./cmd/server
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/portlyn-$os-$arch$ext" ./cmd/server
           done
 
       - name: Verify embedded frontend
