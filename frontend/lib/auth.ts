@@ -160,7 +160,7 @@ export async function regenerateRecoveryCodes(code: string) {
 }
 
 export async function getRouteAuthService(serviceId: string | number) {
-  return apiFetch<RouteAuthService>(`/api/v1/route-auth/service/${serviceId}`, undefined, { auth: false });
+  return apiFetch<RouteAuthService>(`/api/v1/route-auth/service/${serviceId}`, undefined, { auth: false, handleUnauthorized: false });
 }
 
 export async function verifyRoutePIN(serviceId: number, pin: string, returnTo?: string) {
@@ -171,7 +171,7 @@ export async function verifyRoutePIN(serviceId: number, pin: string, returnTo?: 
       method: "POST",
       body: JSON.stringify({ service_id: serviceId, pin })
     },
-    { auth: false }
+    { auth: false, handleUnauthorized: false }
   );
 }
 
@@ -182,7 +182,7 @@ export async function requestRouteEmailCode(serviceId: number, email: string) {
       method: "POST",
       body: JSON.stringify({ service_id: serviceId, email })
     },
-    { auth: false }
+    { auth: false, handleUnauthorized: false }
   );
 }
 
@@ -194,7 +194,7 @@ export async function verifyRouteEmailCode(serviceId: number, email: string, cod
       method: "POST",
       body: JSON.stringify({ service_id: serviceId, email, code })
     },
-    { auth: false }
+    { auth: false, handleUnauthorized: false }
   );
 }
 
