@@ -23,6 +23,20 @@ import { useAuth } from "@/components/providers";
 import { ApiError } from "@/lib/api";
 import { beginPasskeyLogin, finishPasskeyLogin, getAuthConfig, requestOTP, startOIDCLogin, verifyMFA, verifyOTP } from "@/lib/auth";
 import { authCardStyle, authInfoAlertStyle, authShellStyle, buttonStyle, inputStyles, mergeAuthUI } from "@/lib/auth-ui";
+
+function sanitizeNextPath(raw: string): string {
+  const value = raw.trim();
+  if (value === "") {
+    return "/services";
+  }
+  if (value.startsWith("//") || value.includes("\\")) {
+    return "/services";
+  }
+  if (!value.startsWith("/")) {
+    return "/services";
+  }
+  return value;
+}
 import { decodeRequestOptions, encodeAssertionResponse } from "@/lib/webauthn";
 
 function LoginContent() {
@@ -76,10 +90,13 @@ function LoginContent() {
     }
   };
 
-  const nextPath = useMemo(
-    () => searchParams.get("next") || "/services",
-    [searchParams]
-  );
+  const nextPath = useMemo(() => {
+    const raw = searchParams.get("next");
+    if (!raw) {
+      return "/services";
+    }
+    return sanitizeNextPath(raw);
+  }, [searchParams]);
 
   useEffect(() => {
     void getAuthConfig().then((config) => setAuthConfig({ ...config, ui: mergeAuthUI(config.ui) })).catch(() => undefined);

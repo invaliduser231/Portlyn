@@ -60,7 +60,7 @@ func (s *Service) RequireBootstrapComplete(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if session, ok := SessionFromContext(r.Context()); ok && session.BootstrapDismissed {
+		if session, ok := SessionFromContext(r.Context()); ok && session.BootstrapDismissed && s.bootstrapDismissAllowed(r.Context(), user) {
 			next.ServeHTTP(w, r)
 			return
 		}

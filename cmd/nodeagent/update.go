@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	updateRepo          = "invaliduser231/Portlyn"
-	updateAssetPrefix   = "portlyn-nodeagent"
-	updateDefaultUnit   = "portlyn-nodeagent.service"
-	updateIdentityRegex = `^https://github\.com/invaliduser231/Portlyn/`
-	updateOIDCIssuer    = "https://token.actions.githubusercontent.com"
+	updateRepo        = "invaliduser231/Portlyn"
+	updateAssetPrefix = "portlyn-nodeagent"
+	updateDefaultUnit = "portlyn-nodeagent.service"
+	updateSANRegex    = `^https://github\.com/invaliduser231/Portlyn/`
+	updateOIDCIssuer  = "https://token.actions.githubusercontent.com"
 )
 
 func runUpdate(args []string) error {
@@ -85,16 +85,15 @@ func runUpdate(args []string) error {
 	}
 	fmt.Println("SHA-256 OK.")
 
-	sig, sigErr := selfupdate.DownloadString(ctx, rel.AssetBaseURL, "checksums.txt.sig")
-	cert, certErr := selfupdate.DownloadString(ctx, rel.AssetBaseURL, "checksums.txt.pem")
-	if sigErr != nil || certErr != nil {
-		return fmt.Errorf("fetch cosign artifacts: sig=%v cert=%v", sigErr, certErr)
+	bundleJSON, err := selfupdate.DownloadString(ctx, rel.AssetBaseURL, "checksums.txt.bundle.json")
+	if err != nil {
+		return fmt.Errorf("fetch sigstore bundle: %w", err)
 	}
-	identity := selfupdate.CosignIdentity{IdentityRegex: updateIdentityRegex, OIDCIssuer: updateOIDCIssuer}
-	if err := selfupdate.VerifyCosign([]byte(checksums), sig, cert, identity); err != nil {
-		return fmt.Errorf("cosign verification failed: %w", err)
+	identity := selfupdate.CosignIdentity{SANRegex: updateSANRegex, OIDCIssuer: updateOIDCIssuer}
+	if err := selfupdate.VerifyCosignBundle([]byte(checksums), bundleJSON, identity); err != nil {
+		return fmt.Errorf("sigstore verification failed: %w", err)
 	}
-	fmt.Println("Cosign signature OK.")
+	fmt.Println("Sigstore signature OK.")
 
 	info, err := os.Stat(exe)
 	if err != nil {

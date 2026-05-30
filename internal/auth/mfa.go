@@ -103,6 +103,7 @@ func (s *Service) EnableTOTP(ctx context.Context, userID uint, code string) (*MF
 		return nil, err
 	}
 	s.InvalidateUser(user.ID)
+	_ = s.RevokeAllUserSessions(ctx, user.ID)
 	return s.MFAStatusForUser(ctx, userID)
 }
 
@@ -278,6 +279,27 @@ func (s *Service) BootstrapRequired(ctx context.Context, user *domain.User) bool
 	return !s.userHasPasskey(ctx, user.ID)
 }
 
+func (s *Service) MFARequiredForUser(ctx context.Context, user *domain.User) bool {
+	if user == nil || user.Role != domain.RoleAdmin {
+		return false
+	}
+	settings, _ := s.settings.Get(ctx)
+	if settings == nil {
+		return false
+	}
+	return settings.RequireMFAForAdmins
+}
+
+func (s *Service) bootstrapDismissAllowed(ctx context.Context, user *domain.User) bool {
+	if user == nil {
+		return false
+	}
+	if user.MustChangePassword {
+		return true
+	}
+	return !s.MFARequiredForUser(ctx, user)
+}
+
 func (s *Service) generateRecoveryCodes() ([]string, []string, error) {
 	plain := make([]string, 0, 8)
 	hashed := make([]string, 0, 8)
@@ -313,7 +335,7 @@ func buildOTPAuthURL(issuer, email, secret string) string {
 }
 
 func validateTOTP(secret, code string, now time.Time) bool {
-	for _, offset := range []int64{-30, 0, 30} {
+	for _, offset := range []int64{0, -30} {
 		if generateTOTP(secret, now.Add(time.Duration(offset)*time.Second)) == code {
 			return true
 		}

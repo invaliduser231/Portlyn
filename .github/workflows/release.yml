@@ -78,7 +78,11 @@ jobs:
       - name: Sign checksums (keyless)
         env:
           COSIGN_EXPERIMENTAL: "1"
-        run: cosign sign-blob --yes dist/checksums.txt --output-signature dist/checksums.txt.sig --output-certificate dist/checksums.txt.pem
+        run: |
+          cosign sign-blob --yes dist/checksums.txt \
+            --output-signature dist/checksums.txt.sig \
+            --output-certificate dist/checksums.txt.pem \
+            --bundle dist/checksums.txt.bundle.json
 
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
@@ -94,6 +98,7 @@ jobs:
             dist/checksums.txt
             dist/checksums.txt.sig
             dist/checksums.txt.pem
+            dist/checksums.txt.bundle.json
 
       - name: Upload linux binaries for container builds
         uses: actions/upload-artifact@v4

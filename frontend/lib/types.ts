@@ -34,6 +34,7 @@ export interface User {
   updated_at: string;
   bootstrap_required?: boolean;
   bootstrap_dismissed?: boolean;
+  mfa_required_for_role?: boolean;
 }
 
 export interface Group {

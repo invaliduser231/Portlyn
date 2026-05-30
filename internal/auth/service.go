@@ -65,6 +65,10 @@ func (s *Service) userHasPasskey(ctx context.Context, userID uint) bool {
 	return s.passkeyChecker(ctx, userID)
 }
 
+func (s *Service) UserHasPasskey(ctx context.Context, userID uint) bool {
+	return s.userHasPasskey(ctx, userID)
+}
+
 func (s *Service) UserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	return s.users.GetByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
 }
@@ -485,7 +489,18 @@ func (s *Service) AuthenticateAccessToken(ctx context.Context, tokenString strin
 	if user, groupIDs, ok := s.getCachedAuthResult(ctx, tokenString); ok {
 		var session *domain.Session
 		if parseErr == nil && claims.SessionID != 0 && s.sessions != nil {
-			session, _ = s.sessions.GetByTokenID(ctx, claims.TokenID)
+			s2, err := s.sessions.GetByTokenID(ctx, claims.TokenID)
+			if err != nil {
+				return nil, nil, nil, ErrInvalidToken
+			}
+			if s2.RevokedAt != nil {
+				return nil, nil, nil, ErrSessionRevoked
+			}
+			now := time.Now().UTC()
+			if s2.ExpiresAt.Before(now) {
+				return nil, nil, nil, ErrRefreshExpired
+			}
+			session = s2
 		}
 		return user, groupIDs, session, nil
 	}
@@ -580,6 +595,7 @@ func (s *Service) CompleteAccountSetup(ctx context.Context, userID uint, email, 
 		return nil, err
 	}
 	s.InvalidateUser(user.ID)
+	_ = s.RevokeAllUserSessions(ctx, user.ID)
 	return user, nil
 }
 
@@ -604,6 +620,7 @@ func (s *Service) ChangeOwnPassword(ctx context.Context, userID uint, currentPas
 		return err
 	}
 	s.InvalidateUser(user.ID)
+	_ = s.RevokeAllUserSessions(ctx, user.ID)
 	return nil
 }
 

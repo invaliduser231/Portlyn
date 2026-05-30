@@ -74,7 +74,14 @@ func (s *LoginTokenStore) GetValidTokenByScope(ctx context.Context, email, token
 }
 
 func (s *LoginTokenStore) MarkUsed(ctx context.Context, id uint, usedAt time.Time) error {
-	return s.db.WithContext(ctx).Model(&domain.LoginToken{}).Where("id = ?", id).Update("used_at", usedAt).Error
+	result := s.db.WithContext(ctx).Model(&domain.LoginToken{}).Where("id = ? AND used_at IS NULL", id).Update("used_at", usedAt)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrAlreadyUsed
+	}
+	return nil
 }
 
 func (s *LoginTokenStore) GetMagicLink(ctx context.Context, serviceID uint, token string) (*domain.LoginToken, error) {

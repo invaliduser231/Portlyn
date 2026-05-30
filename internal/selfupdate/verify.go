@@ -1,15 +1,21 @@
 package selfupdate
 
 import (
-	"crypto/ecdsa"
+	"bytes"
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/pem"
+	_ "embed"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/sigstore/sigstore-go/pkg/bundle"
+	"github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/sigstore/sigstore-go/pkg/verify"
 )
+
+//go:embed sigstore_trusted_root.json
+var sigstoreTrustedRootJSON []byte
 
 func VerifySHA256(payload []byte, checksumsTxt, assetName string) error {
 	expected, err := lookupChecksum(checksumsTxt, assetName)
@@ -38,77 +44,50 @@ func lookupChecksum(checksumsTxt, assetName string) (string, error) {
 }
 
 type CosignIdentity struct {
-	IdentityRegex string
-	OIDCIssuer    string
+	SANRegex   string
+	OIDCIssuer string
 }
 
-func VerifyCosign(blob []byte, signatureB64, certPEM string, identity CosignIdentity) error {
-	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(signatureB64))
+func VerifyCosignBundle(payload []byte, bundleJSON string, identity CosignIdentity) error {
+	if strings.TrimSpace(bundleJSON) == "" {
+		return fmt.Errorf("empty sigstore bundle")
+	}
+	if !json.Valid([]byte(bundleJSON)) {
+		return fmt.Errorf("bundle is not valid JSON")
+	}
+	b := &bundle.Bundle{}
+	if err := b.UnmarshalJSON([]byte(bundleJSON)); err != nil {
+		return fmt.Errorf("parse sigstore bundle: %w", err)
+	}
+
+	trustedRoot, err := root.NewTrustedRootFromJSON(sigstoreTrustedRootJSON)
 	if err != nil {
-		return fmt.Errorf("decode signature: %w", err)
+		return fmt.Errorf("load trusted root: %w", err)
 	}
-	block, _ := pem.Decode([]byte(certPEM))
-	if block == nil {
-		return fmt.Errorf("no PEM block in certificate")
+	trustedMaterial := root.TrustedMaterialCollection{trustedRoot}
+
+	verifierOpts := []verify.VerifierOption{
+		verify.WithSignedCertificateTimestamps(1),
+		verify.WithTransparencyLog(1),
+		verify.WithObserverTimestamps(1),
 	}
-	cert, err := x509.ParseCertificate(block.Bytes)
+	certID, err := verify.NewShortCertificateIdentity(identity.OIDCIssuer, "", "", identity.SANRegex)
 	if err != nil {
-		return fmt.Errorf("parse certificate: %w", err)
+		return fmt.Errorf("certificate identity: %w", err)
 	}
-	if err := matchCertIdentity(cert, identity); err != nil {
-		return err
+	policy := verify.NewPolicy(verify.WithArtifact(bytes.NewReader(payload)), verify.WithCertificateIdentity(certID))
+
+	verifier, err := verify.NewVerifier(trustedMaterial, verifierOpts...)
+	if err != nil {
+		return fmt.Errorf("build verifier: %w", err)
 	}
-	pub, ok := cert.PublicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return fmt.Errorf("unsupported public key type %T (expected ecdsa)", cert.PublicKey)
-	}
-	digest := sha256.Sum256(blob)
-	if !ecdsa.VerifyASN1(pub, digest[:], sig) {
-		return fmt.Errorf("signature verification failed")
+	if _, err := verifier.Verify(b, policy); err != nil {
+		return fmt.Errorf("sigstore verification failed: %w", err)
 	}
 	return nil
 }
 
-func matchCertIdentity(cert *x509.Certificate, identity CosignIdentity) error {
-	if strings.TrimSpace(identity.IdentityRegex) == "" {
-		return nil
-	}
-	re, err := regexp.Compile(identity.IdentityRegex)
-	if err != nil {
-		return fmt.Errorf("compile identity regex: %w", err)
-	}
-	candidates := certIdentityCandidates(cert)
-	for _, candidate := range candidates {
-		if re.MatchString(candidate) {
-			if identity.OIDCIssuer == "" || certHasOIDCIssuer(cert, identity.OIDCIssuer) {
-				return nil
-			}
-		}
-	}
-	return fmt.Errorf("certificate identity does not match %q (candidates: %v)", identity.IdentityRegex, candidates)
-}
-
-func certIdentityCandidates(cert *x509.Certificate) []string {
-	var out []string
-	for _, u := range cert.URIs {
-		out = append(out, u.String())
-	}
-	out = append(out, cert.EmailAddresses...)
-	out = append(out, cert.DNSNames...)
-	return out
-}
-
-var oidcIssuerOID = []int{1, 3, 6, 1, 4, 1, 57264, 1, 1}
-
-func certHasOIDCIssuer(cert *x509.Certificate, expected string) bool {
-	expected = strings.TrimSpace(expected)
-	for _, ext := range cert.Extensions {
-		if !ext.Id.Equal(oidcIssuerOID) {
-			continue
-		}
-		if strings.TrimSpace(string(ext.Value)) == expected {
-			return true
-		}
-	}
-	return false
+func ChecksumHex(payload []byte) string {
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }

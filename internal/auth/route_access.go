@@ -179,7 +179,7 @@ func (s *Service) buildRouteFrontendURL(ctx context.Context, path string, servic
 	}
 	query := target.Query()
 	query.Set("serviceId", strconv.FormatUint(uint64(serviceID), 10))
-	if sanitized := sanitizeReturnTo(returnTo); sanitized != "" {
+	if sanitized := s.sanitizeReturnToForOrigin(ctx, returnTo); sanitized != "" {
 		query.Set("returnTo", sanitized)
 	}
 	target.RawQuery = query.Encode()
@@ -195,7 +195,64 @@ func sanitizeReturnTo(value string) string {
 	if err != nil || parsed.Host == "" || parsed.Scheme == "" {
 		return ""
 	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return ""
+	}
 	return parsed.String()
+}
+
+func (s *Service) sanitizeReturnToForOrigin(ctx context.Context, value string) string {
+	sanitized := sanitizeReturnTo(value)
+	if sanitized == "" {
+		return ""
+	}
+	parsed, err := url.Parse(sanitized)
+	if err != nil {
+		return ""
+	}
+	candidate := strings.ToLower(parsed.Hostname())
+	if candidate == "" {
+		return ""
+	}
+	frontendHost := hostFromBase(s.currentFrontendBaseURL(ctx))
+	if frontendHost != "" && (candidate == frontendHost || hostSharesApex(candidate, frontendHost)) {
+		return sanitized
+	}
+	fallback := hostFromBase(s.fallbackFrontendBaseURL)
+	if fallback != "" && (candidate == fallback || hostSharesApex(candidate, fallback)) {
+		return sanitized
+	}
+	return ""
+}
+
+func hostFromBase(base string) string {
+	base = strings.TrimSpace(base)
+	if base == "" {
+		return ""
+	}
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(parsed.Hostname())
+}
+
+func hostSharesApex(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	apexA := apexDomain(a)
+	apexB := apexDomain(b)
+	return apexA != "" && apexA == apexB
+}
+
+func apexDomain(host string) string {
+	host = strings.TrimSpace(strings.ToLower(host))
+	parts := strings.Split(host, ".")
+	if len(parts) < 2 {
+		return host
+	}
+	return parts[len(parts)-2] + "." + parts[len(parts)-1]
 }
 
 func (s *Service) RouteAccessCookieClaims(r *http.Request, serviceID uint) (*RouteAccessClaims, error) {

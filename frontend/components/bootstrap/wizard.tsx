@@ -366,18 +366,32 @@ export function BootstrapWizard({ user, onComplete }: BootstrapWizardProps) {
             </Stack>
           )}
 
-          <Divider />
-          <Alert color="warning" variant="light">
-            <Text size="sm">
-              Without MFA your admin account relies on the password alone. You can skip for now, but Portlyn will
-              prompt you again on the next login.
-            </Text>
-          </Alert>
-          <Group justify="flex-end">
-            <Button variant="subtle" color="gray" onClick={() => void skip()} loading={skipping}>
-              Skip for now
-            </Button>
-          </Group>
+          {user.mfa_required_for_role && !user.must_change_password ? (
+            <>
+              <Divider />
+              <Alert color="danger" variant="light">
+                <Text size="sm">
+                  This deployment requires multi-factor authentication for admin accounts. Enroll a passkey or
+                  authenticator above to continue.
+                </Text>
+              </Alert>
+            </>
+          ) : (
+            <>
+              <Divider />
+              <Alert color="warning" variant="light">
+                <Text size="sm">
+                  Without MFA your account relies on the password alone. You can skip for now, but Portlyn will
+                  prompt you again on the next login.
+                </Text>
+              </Alert>
+              <Group justify="flex-end">
+                <Button variant="subtle" color="gray" onClick={() => void skip()} loading={skipping}>
+                  Skip for now
+                </Button>
+              </Group>
+            </>
+          )}
         </Stack>
       ) : null}
 

@@ -26,7 +26,7 @@ func generateSelfSignedCert(hostname string) (*tls.Certificate, error) {
 	}
 
 	notBefore := time.Now().Add(-1 * time.Hour)
-	notAfter := notBefore.Add(7 * 24 * time.Hour)
+	notAfter := notBefore.Add(24 * time.Hour)
 
 	tmpl := x509.Certificate{
 		SerialNumber: serial,

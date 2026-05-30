@@ -385,6 +385,8 @@ func (cfg *Config) ValidationIssues() []ValidationIssue {
 		if cfg.NodeAllowMTLSHeaderFallback {
 			add("warn", "NODE_ALLOW_MTLS_HEADER_FALLBACK", "mtls_header_fallback_enabled", "mTLS header fallback is enabled; prefer direct TLS client cert validation")
 		}
+	} else if frontendHost := hostFromURL(cfg.FrontendBaseURL); frontendHost != "" && !isLoopbackHost(frontendHost) {
+		add("error", "ALLOW_INSECURE_DEV_MODE", "insecure_dev_mode_in_production", "ALLOW_INSECURE_DEV_MODE=true is only valid when FRONTEND_BASE_URL points at localhost; refusing to start in production with weakened defenses")
 	}
 	if cfg.RedirectHTTPToHTTPS && cfg.ProxyHTTPSAddr == "" {
 		add("error", "PROXY_HTTPS_ADDR", "missing_https_listener", "PROXY_HTTPS_ADDR must be configured when REDIRECT_HTTP_TO_HTTPS=true")
@@ -564,6 +566,22 @@ func secureOrLocalURL(raw string) bool {
 	default:
 		return false
 	}
+}
+
+func hostFromURL(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(parsed.Hostname())
+}
+
+func isLoopbackHost(host string) bool {
+	switch strings.ToLower(strings.TrimSpace(host)) {
+	case "localhost", "127.0.0.1", "::1", "":
+		return true
+	}
+	return strings.HasPrefix(host, "127.")
 }
 
 func postgresSSLMode(raw string) string {

@@ -401,10 +401,12 @@ func (s *Server) handleMe(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		*domain.User
 		BootstrapRequired  bool `json:"bootstrap_required"`
 		BootstrapDismissed bool `json:"bootstrap_dismissed"`
+		MFARequiredForRole bool `json:"mfa_required_for_role"`
 	}{
 		User:               user,
 		BootstrapRequired:  s.auth.BootstrapRequired(r.Context(), user),
 		BootstrapDismissed: dismissed,
+		MFARequiredForRole: s.auth.MFARequiredForUser(r.Context(), user),
 	}
 	writeJSON(w, stdhttp.StatusOK, response)
 }
@@ -416,14 +418,20 @@ func (s *Server) handleDismissBootstrap(w stdhttp.ResponseWriter, r *stdhttp.Req
 		return
 	}
 	user, _ := auth.UserFromContext(r.Context())
+	if user == nil {
+		writeErrorRequest(w, r, stdhttp.StatusUnauthorized, "unauthorized", "missing auth context")
+		return
+	}
+	if !user.MustChangePassword && s.auth.MFARequiredForUser(r.Context(), user) && !user.MFAEnabled && !s.auth.UserHasPasskey(r.Context(), user.ID) {
+		writeErrorRequest(w, r, stdhttp.StatusForbidden, "mfa_required", "mfa enrollment is required and cannot be dismissed")
+		return
+	}
 	if err := s.sessions.MarkBootstrapDismissed(r.Context(), session.ID, time.Now().UTC()); err != nil {
 		s.internalError(w, err)
 		return
 	}
 	session.BootstrapDismissed = true
-	if user != nil {
-		_ = s.audit.Log(r.Context(), &user.ID, "bootstrap_dismissed", "user", &user.ID, nil)
-	}
+	_ = s.audit.Log(r.Context(), &user.ID, "bootstrap_dismissed", "user", &user.ID, nil)
 	writeJSON(w, stdhttp.StatusOK, map[string]any{"bootstrap_dismissed": true})
 }
 

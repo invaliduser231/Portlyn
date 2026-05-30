@@ -17,7 +17,42 @@ import (
 var (
 	ErrNodeAlreadyProvisioned = errors.New("node already has a tunnel assignment")
 	ErrInvalidServerSettings  = errors.New("tunnel server settings are invalid")
+	ErrPeerKeyDuplicate       = errors.New("wireguard public key already in use")
 )
+
+func (m *Manager) ensureUniquePeerKey(ctx context.Context, key string, excludeNodeID, excludeClientID uint) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil
+	}
+	nodes, err := m.nodes.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range nodes {
+		if n.ID == excludeNodeID {
+			continue
+		}
+		if strings.TrimSpace(n.WGPublicKey) == key {
+			return ErrPeerKeyDuplicate
+		}
+	}
+	if m.clients != nil {
+		clients, err := m.clients.List(ctx)
+		if err != nil {
+			return err
+		}
+		for _, c := range clients {
+			if c.ID == excludeClientID {
+				continue
+			}
+			if strings.TrimSpace(c.WGPublicKey) == key {
+				return ErrPeerKeyDuplicate
+			}
+		}
+	}
+	return nil
+}
 
 func composeServerEndpoint(endpoint string, listenPort int) string {
 	endpoint = strings.TrimSpace(endpoint)
@@ -203,6 +238,10 @@ func (m *Manager) BootstrapNode(ctx context.Context, nodeID uint, opts Bootstrap
 			return nil, err
 		}
 		clientKeys = generated
+	}
+
+	if err := m.ensureUniquePeerKey(ctx, clientKeys.PublicKey, node.ID, 0); err != nil {
+		return nil, err
 	}
 
 	if strings.TrimSpace(node.WGTunnelIP) != "" {

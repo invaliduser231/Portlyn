@@ -48,6 +48,10 @@ func (s *Server) handleCreateAuditWebhook(w stdhttp.ResponseWriter, r *stdhttp.R
 	if !s.decodeAndValidate(w, r, &req) {
 		return
 	}
+	if err := validateServiceTargetURL(req.URL); err != nil {
+		writeError(w, stdhttp.StatusBadRequest, "invalid_webhook_url", err.Error())
+		return
+	}
 	secret, err := randomWebhookSecret()
 	if err != nil {
 		s.internalError(w, err)
@@ -103,6 +107,10 @@ func (s *Server) handleUpdateAuditWebhook(w stdhttp.ResponseWriter, r *stdhttp.R
 		item.Name = *req.Name
 	}
 	if req.URL != nil {
+		if err := validateServiceTargetURL(*req.URL); err != nil {
+			writeError(w, stdhttp.StatusBadRequest, "invalid_webhook_url", err.Error())
+			return
+		}
 		item.URL = *req.URL
 	}
 	if req.Format != nil {

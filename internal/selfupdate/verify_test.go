@@ -36,16 +36,16 @@ func TestVerifySHA256IgnoresAsteriskPrefix(t *testing.T) {
 	}
 }
 
-func TestVerifyCosignRejectsBadSignature(t *testing.T) {
-	err := VerifyCosign([]byte("data"), "not-base64!!", "no-pem", CosignIdentity{})
+func TestVerifyCosignBundleRejectsEmpty(t *testing.T) {
+	err := VerifyCosignBundle([]byte("data"), "", CosignIdentity{})
 	if err == nil {
-		t.Fatal("expected error on bad signature input")
+		t.Fatal("expected error on empty bundle")
 	}
 }
 
-func TestVerifyCosignRejectsBadCert(t *testing.T) {
-	err := VerifyCosign([]byte("data"), "aGVsbG8=", "not-a-pem", CosignIdentity{})
-	if err == nil || !strings.Contains(err.Error(), "no PEM block") {
-		t.Fatalf("expected PEM error, got %v", err)
+func TestVerifyCosignBundleRejectsInvalidJSON(t *testing.T) {
+	err := VerifyCosignBundle([]byte("data"), "{not json", CosignIdentity{})
+	if err == nil || !strings.Contains(err.Error(), "valid JSON") {
+		t.Fatalf("expected JSON error, got %v", err)
 	}
 }

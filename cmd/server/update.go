@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	updateRepo          = "invaliduser231/Portlyn"
-	updateAssetPrefix   = "portlyn"
-	updateDefaultUnit   = "portlyn.service"
-	updateIdentityRegex = `^https://github\.com/invaliduser231/Portlyn/`
-	updateOIDCIssuer    = "https://token.actions.githubusercontent.com"
+	updateRepo        = "invaliduser231/Portlyn"
+	updateAssetPrefix = "portlyn"
+	updateDefaultUnit = "portlyn.service"
+	updateSANRegex    = `^https://github\.com/invaliduser231/Portlyn/`
+	updateOIDCIssuer  = "https://token.actions.githubusercontent.com"
 )
 
 func runUpdate(args []string) error {
@@ -33,7 +33,7 @@ func runUpdate(args []string) error {
 		assetPrefix:   updateAssetPrefix,
 		repo:          updateRepo,
 		unit:          *unit,
-		identity:      selfupdate.CosignIdentity{IdentityRegex: updateIdentityRegex, OIDCIssuer: updateOIDCIssuer},
+		identity:      selfupdate.CosignIdentity{SANRegex: updateSANRegex, OIDCIssuer: updateOIDCIssuer},
 		currentVer:    version,
 		checkOnly:     *checkOnly,
 		targetVersion: strings.TrimSpace(*targetVersion),
@@ -108,15 +108,14 @@ func runSelfUpdate(cfg updateConfig) error {
 	}
 	fmt.Println("SHA-256 OK.")
 
-	sig, sigErr := selfupdate.DownloadString(ctx, rel.AssetBaseURL, "checksums.txt.sig")
-	cert, certErr := selfupdate.DownloadString(ctx, rel.AssetBaseURL, "checksums.txt.pem")
-	if sigErr != nil || certErr != nil {
-		return fmt.Errorf("fetch cosign artifacts: sig=%v cert=%v", sigErr, certErr)
+	bundleJSON, err := selfupdate.DownloadString(ctx, rel.AssetBaseURL, "checksums.txt.bundle.json")
+	if err != nil {
+		return fmt.Errorf("fetch sigstore bundle: %w", err)
 	}
-	if err := selfupdate.VerifyCosign([]byte(checksums), sig, cert, cfg.identity); err != nil {
-		return fmt.Errorf("cosign verification failed: %w", err)
+	if err := selfupdate.VerifyCosignBundle([]byte(checksums), bundleJSON, cfg.identity); err != nil {
+		return fmt.Errorf("sigstore verification failed: %w", err)
 	}
-	fmt.Println("Cosign signature OK.")
+	fmt.Println("Sigstore signature OK.")
 
 	info, err := os.Stat(exe)
 	if err != nil {
