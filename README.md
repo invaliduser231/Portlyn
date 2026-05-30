@@ -275,6 +275,19 @@ After the first push to GHCR, set package visibility to `Public` for:
 
 </details>
 
+### Updating
+
+Once Portlyn is installed (either the single binary or the node agent), upgrades are a single command:
+
+```bash
+sudo portlyn update              # download latest release, verify SHA-256 + cosign, atomic swap, restart
+sudo portlyn update --check      # only check whether a newer release exists
+sudo portlyn update --version v1.2.3
+sudo portlyn update --no-restart # swap binary but leave the service alone
+```
+
+The same command exists for the node agent: `sudo portlyn-nodeagent update`. Backups land next to the binary as `<path>.bak`. No automatic update checks happen anywhere; the CLI only reaches GitHub when you invoke it.
+
 ### Source build
 
 ```bash

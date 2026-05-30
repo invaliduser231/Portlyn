@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM --platform=$BUILDPLATFORM node:22-alpine AS base
 
 RUN npm install -g npm@11.14.1
 
@@ -12,7 +12,7 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV INTERNAL_API_BASE_URL=$INTERNAL_API_BASE_URL
 
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm install --no-audit --no-fund
 
 FROM base AS builder
 
@@ -27,6 +27,16 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN npm run build
+
+FROM base AS prodmodules
+
+WORKDIR /app
+
+ARG TARGETOS
+ARG TARGETARCH
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund --cpu=${TARGETARCH} --os=${TARGETOS}
 
 FROM node:22-alpine
 
@@ -43,7 +53,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=prodmodules /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.mjs ./next.config.mjs

@@ -74,11 +74,27 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Validate Docker Compose wiring
         run: docker compose --env-file .env.docker.example config
 
+      - name: Build server and nodeagent binaries for image
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/portlyn-linux-amd64 ./cmd/server
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/portlyn-nodeagent-linux-amd64 ./cmd/nodeagent
+
       - name: Build backend image
-        run: docker build -t portlyn-backend:test .
+        run: docker build --build-arg TARGETARCH=amd64 -t portlyn-backend:test .
+
+      - name: Build nodeagent image
+        run: docker build --build-arg TARGETARCH=amd64 -f Dockerfile.nodeagent -t portlyn-nodeagent:test .
 
       - name: Build frontend image
         run: docker build -t portlyn-frontend:test ./frontend

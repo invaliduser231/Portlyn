@@ -51,6 +51,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "update":
+			if err := runUpdate(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "update:", err)
+				os.Exit(1)
+			}
+			return
 		case "help", "--help", "-h":
 			printUsage()
 			return
@@ -459,6 +465,7 @@ Usage:
   portlyn               start the server (requires .env)
   portlyn init          interactive setup wizard (generates .env and admin user)
   portlyn settings sync apply env values for env-controlled settings to the database
+  portlyn update        download, verify and install the latest release (flags: --check, --version, --no-restart, --unit)
   portlyn version       print version and exit
   portlyn help          show this help
 

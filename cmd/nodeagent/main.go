@@ -61,12 +61,27 @@ type tunnelTargetsResponse struct {
 	AdvertisedSubnets []string     `json:"advertised_subnets"`
 }
 
+var version = "dev-agent"
+
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "update":
+			if err := runUpdate(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "update:", err)
+				os.Exit(1)
+			}
+			return
+		case "version", "--version", "-v":
+			fmt.Println("portlyn-nodeagent", version)
+			return
+		}
+	}
 	apiBase := flag.String("api", "https://localhost", "api base url")
 	token := flag.String("token", "", "enrollment token (only needed on first run)")
 	name := flag.String("name", "node-agent", "node name used during enrollment")
 	description := flag.String("description", "", "node description used during enrollment")
-	version := flag.String("version", "dev-agent", "node version")
+	versionFlag := flag.String("version", version, "node version")
 	interval := flag.Duration("interval", 30*time.Second, "heartbeat interval")
 	targetInterval := flag.Duration("target-interval", 60*time.Second, "tunnel target refresh interval")
 	statePath := flag.String("state", "", "path to the agent state file")
@@ -99,7 +114,7 @@ func main() {
 		if strings.TrimSpace(*token) == "" {
 			log.Fatal("no saved state found: provide an enrollment --token for the first run")
 		}
-		state, err = provision(client, api, *token, *name, *description, *version)
+		state, err = provision(client, api, *token, *name, *description, *versionFlag)
 		if err != nil {
 			log.Fatalf("provision: %v", err)
 		}
@@ -157,7 +172,7 @@ func main() {
 	targetTicker := time.NewTicker(*targetInterval)
 	defer targetTicker.Stop()
 
-	sendHeartbeat(client, heartbeatEndpoint, state.HeartbeatToken, *version, wgClient)
+	sendHeartbeat(client, heartbeatEndpoint, state.HeartbeatToken, *versionFlag, wgClient)
 
 	for {
 		select {
@@ -165,7 +180,7 @@ func main() {
 			log.Print("shutting down")
 			return
 		case <-heartbeatTicker.C:
-			sendHeartbeat(client, heartbeatEndpoint, state.HeartbeatToken, *version, wgClient)
+			sendHeartbeat(client, heartbeatEndpoint, state.HeartbeatToken, *versionFlag, wgClient)
 		case <-targetTicker.C:
 			refreshTargets()
 		}

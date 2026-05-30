@@ -1,17 +1,9 @@
-FROM golang:1.26.3-alpine AS builder
-
-WORKDIR /src
-
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/server ./cmd/server
-
 FROM alpine:3.20
 
 WORKDIR /app
+
+ARG TARGETARCH
+ARG BINARY_SOURCE_DIR=dist
 
 RUN apk add --no-cache ca-certificates tzdata wget && \
     addgroup -S app && \
@@ -19,7 +11,8 @@ RUN apk add --no-cache ca-certificates tzdata wget && \
     mkdir -p /data /data/certificates && \
     chown -R app:app /app /data
 
-COPY --from=builder /app/server /app/server
+COPY ${BINARY_SOURCE_DIR}/portlyn-linux-${TARGETARCH} /app/server
+RUN chmod +x /app/server
 
 USER app
 
