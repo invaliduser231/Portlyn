@@ -27,20 +27,7 @@ func RequireWritable(path string) error {
 	}
 	f.Close()
 	_ = os.Remove(probe)
-	if info, err := os.Stat(path); err == nil {
-		if err := tryReplaceProbe(path, info.Mode()); err != nil {
-			return fmt.Errorf("cannot replace %s (rerun with sudo?): %w", path, err)
-		}
-	}
 	return nil
-}
-
-func tryReplaceProbe(path string, mode os.FileMode) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, mode)
-	if err != nil {
-		return err
-	}
-	return f.Close()
 }
 
 func AtomicSwap(currentPath string, payload io.Reader, mode os.FileMode) (string, error) {
