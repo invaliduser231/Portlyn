@@ -111,7 +111,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=${INSTALL_DIR}/${BIN_NAME} --api ${API_BASE} --token ${TOKEN} --name ${NAME} --state ${STATE_DIR}/state.json
+ExecStart=${INSTALL_DIR}/${BIN_NAME} --api "${API_BASE}" --token "${TOKEN}" --name "${NAME}" --state "${STATE_DIR}/state.json"
 Restart=always
 RestartSec=5
 DynamicUser=yes
@@ -126,5 +126,5 @@ EOF
 else
   $SUDO mkdir -p "$STATE_DIR"
   echo "systemd not found. Start the agent manually (or add it to your init system):"
-  echo "  ${INSTALL_DIR}/${BIN_NAME} --api ${API_BASE} --token ${TOKEN} --name ${NAME} --state ${STATE_DIR}/state.json"
+  echo "  ${INSTALL_DIR}/${BIN_NAME} --api \"${API_BASE}\" --token \"${TOKEN}\" --name \"${NAME}\" --state \"${STATE_DIR}/state.json\""
 fi

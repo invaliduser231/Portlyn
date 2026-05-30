@@ -93,8 +93,8 @@ export function BootstrapWizard({ user, onComplete }: BootstrapWizardProps) {
     try {
       const updated = await completeAccountSetup(email.trim(), password);
       notifications.show({ color: "success", message: "Account details saved." });
-      onComplete({ user: updated });
       setStep(1);
+      onComplete({ user: { ...updated, bootstrap_dismissed: user.bootstrap_dismissed } });
     } catch (err) {
       notifications.show({
         color: "danger",
@@ -130,7 +130,6 @@ export function BootstrapWizard({ user, onComplete }: BootstrapWizardProps) {
         body: JSON.stringify(encoded)
       });
       notifications.show({ color: "success", message: "Passkey registered." });
-      onComplete();
       setStep(2);
     } catch (err) {
       notifications.show({
@@ -162,11 +161,10 @@ export function BootstrapWizard({ user, onComplete }: BootstrapWizardProps) {
   const enableTotp = async () => {
     setTotpBusy(true);
     try {
-      const status = await enableMFA(totpCode.trim());
+      await enableMFA(totpCode.trim());
       setRecoveryCodes(totpSetup?.recovery_codes || []);
       setTotpCode("");
       notifications.show({ color: "success", message: "Authenticator enabled." });
-      onComplete({ user: { ...user, mfa_enabled: status.enabled } });
     } catch (err) {
       notifications.show({
         color: "danger",
